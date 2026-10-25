@@ -35,28 +35,48 @@ Motion (framer-motion) is used only for meaningful transitions:
 - page entrance
 - section reveal
 - navigation transitions
-- future agent execution visualization
+- upload/processing states
+- review transitions
+- confirmation
 
 No unnecessary continuous animations.
 
-## Main routes and intended future purpose
+## Main routes and purpose
 
 | Route | Purpose |
 |-------|---------|
 | `/` | Landing page: "YOUR CAREER. UNDERSTOOD." Introduces the system |
 | `/auth/login` | Sign in (placeholder; auth connects later) |
 | `/auth/signup` | Create account (placeholder; auth connects later) |
-| `/onboarding/start` | Begin onboarding (placeholder) |
-| `/onboarding/resume` | Resume import (placeholder; later phase) |
-| `/onboarding/profile` | Manual profile entry (placeholder) |
-| `/onboarding/review` | Onboarding review (placeholder) |
+| `/onboarding/start` | Choose manual profile or resume upload (implemented) |
+| `/onboarding/resume` | Upload resume → extract text → structured draft → save (implemented) |
+| `/onboarding/profile` | Manual profile form: basic info, education, skills, projects, experience, career goals (implemented) |
+| `/onboarding/review` | Inspect structured profile before confirmation (implemented) |
 | `/app` | Application shell index |
-| `/app/twin` | The CareerTwin professional state |
-| `/app/careers` | Career path analysis |
-| `/app/skills` | Skill intelligence |
-| `/app/roadmap` | Learning roadmap |
-| `/app/interview` | Interview lab |
-| `/app/trust` | Evidence intelligence / confidence |
+| `/app/twin` | Confirmed CareerTwin overview (implemented) |
+| `/app/careers` | Career path analysis (future) |
+| `/app/skills` | Skill intelligence (future) |
+| `/app/roadmap` | Learning roadmap (future) |
+| `/app/interview` | Interview lab (future) |
+| `/app/trust` | Evidence intelligence / confidence (future) |
+
+## Onboarding flow (Phase 2)
+
+1. **Start** (`/onboarding/start`): choose "Build manually" or "Upload resume".
+2. **Manual** (`/onboarding/profile`): progressive sections with add/remove
+   repeated items; client-side validation; draft auto-saves.
+3. **Resume** (`/onboarding/resume`): select file → upload → extracted text →
+   structured draft → save draft profile. Extraction is deterministic; no fake
+   AI agent activity is shown.
+4. **Review** (`/onboarding/review`): professional verification interface
+   displaying personal info, education, skills, projects, experience, and
+   career goals. Extracted info is labeled by source
+   (USER_CONFIRMED / DOCUMENT_EXTRACTED / SYSTEM_INFERRED).
+5. **Confirm**: "CONFIRM CAREERTWIN" validates, persists, sets status to
+   `CONFIRMED`, redirects to `/app/twin`.
+6. **Twin** (`/app/twin`): overview displaying name, headline, summary,
+   education overview, skill/project/experience counts, career goal, and
+   profile status.
 
 ## Navigation (future persistent shell)
 

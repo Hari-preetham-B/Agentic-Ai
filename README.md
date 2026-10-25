@@ -6,12 +6,12 @@ state called the **CareerTwin**.
 
 ## Status
 
-**Foundation stage.** This release establishes the repository structure,
-frontend shell, backend shell, shared contracts, environment configuration,
-source-of-truth documentation, and basic health-check functionality.
+**Profile + Onboarding (Phase 2) implemented.** This release adds a strongly
+typed, validated, persisted, and confirmable CareerTwin profile, plus resume
+upload (PDF/DOCX/TXT) with deterministic text extraction and a structured
+draft for review.
 
-No AI agents, RAG, resume parsing, authentication, or database schema has been
-implemented yet.
+No AI agents, LangGraph, RAG, or authentication implemented yet.
 
 ## Architecture summary
 
@@ -98,10 +98,14 @@ server-side only — never expose them through `NEXT_PUBLIC_*`.
 | Shared package | ✅ (contract boundary defined) |
 | Source-of-truth docs | ✅ |
 | `/health` endpoint | ✅ |
+| PostgreSQL/Supabase + SQLAlchemy + Alembic | ✅ |
+| Profile CRUD + validation + confirmation | ✅ |
+| Resume upload (PDF/DOCX/TXT) + draft | ✅ |
+| Onboarding flow + `/app/twin` | ✅ |
 | Authentication | ❌ later phase |
 | AI agents | ❌ later phase |
 | RAG / pgvector | ❌ later phase |
-| Resume parsing | ❌ later phase |
+| Resume semantic extraction | ❌ later phase |
 
 ## Future roadmap
 

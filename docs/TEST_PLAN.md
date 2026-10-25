@@ -14,43 +14,43 @@
 - End-to-end tests
 - Security / authorization tests
 
-## This stage (foundation)
+## Tests implemented (Phase 2)
 
-Only the minimum tests needed to validate the foundation are implemented:
+Backend (`apps/api/tests/`):
 
-- backend starts
-- `/health` works
-- frontend builds
-- frontend routes render
+| Test | Covers |
+|------|--------|
+| `test_health.py` | backend starts, `/health` works, root meta |
+| `test_profile.py` | profile create/retrieve/update/delete, child record CRUD, profile detail with children, validation structure, confirmation rejection when invalid, successful confirmation, profile status transitions |
+| `test_resume.py` | TXT/PDF/DOCX extraction, empty file rejection, oversized file rejection, unsupported type rejection, filename sanitization, format detection by extension |
+| `conftest.py` | in-memory SQLite (aiosqlite) session fixture so no real PostgreSQL is required |
 
-### Implemented tests
-- `apps/api/tests/test_health.py` — `GET /health` returns `status: ok` and the
-  service name; root endpoint returns service meta.
+Frontend (`apps/web/`):
 
-### Validation commands
+| Check | Covers |
+|-------|--------|
+| `tsc --noEmit` | TypeScript strict type safety across onboarding flow and API client |
+| `npm run lint` | ESLint (no explicit `any`, no unused vars) |
+| `npm run build` | Next.js production build; all 17 routes prerender |
+| Manual smoke test | onboarding start/profile/resume/review pages render; `/app/twin` renders |
+
+## Validation commands
 
 Backend:
 ```bash
 cd apps/api
-pip install -e .
-pip install pytest
-pytest
+# .venv already created with dependencies
+.venv\Scripts\python.exe -m pytest
 ```
 
 Frontend:
 ```bash
-cd apps/web
-npm install
+cd/apps/web
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
-Backend server check:
-```bash
-cd apps/api
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-curl http://localhost:8000/health
-```
-
 ## Status
-Foundation-stage tests implemented. Future phases add the full strategy above.
+Phase 2 tests implemented and passing (24 backend tests). Future phases add
+the full testing strategy above.

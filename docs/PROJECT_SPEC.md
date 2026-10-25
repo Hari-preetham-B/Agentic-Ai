@@ -24,7 +24,8 @@ and deterministic services to it over time.
 - Learners who want a longitudinal view of their professional growth
 
 ## Core capabilities
-- Resume / manual profile onboarding
+- Resume / manual profile onboarding (implemented: Phase 2)
+- Structured CareerTwin profile with validation, persistence, and confirmation (implemented: Phase 2)
 - Career path analysis
 - Skill-gap analysis
 - Personalized learning roadmaps
@@ -33,6 +34,12 @@ and deterministic services to it over time.
 - Claim-level confidence classification
 - Inspectable agent execution traces
 - A premium dark technical/editorial UI
+
+## Implementation status
+Foundation (Phase 1) and Profile + Onboarding (Phase 2) are implemented. The profile is strongly typed,
+validated, persisted in PostgreSQL, and reviewable/confirmable by the user. Resume upload (PDF/DOCX/TXT)
+produces extracted text and a structured draft for review. No AI agents, LangGraph, RAG, or authentication
+implemented yet.
 
 ## The CareerTwin concept
 The CareerTwin represents:
@@ -100,6 +107,8 @@ LLM's self-assessment.
 - Next.js app runs on http://localhost:3000 with TypeScript, Tailwind, Motion
 - FastAPI app runs on http://localhost:8000 with `/health`
 - Pydantic Settings centralized configuration
+- PostgreSQL/Supabase connected via SQLAlchemy async + asyncpg; Alembic initial migration
+- Profile CRUD, child-record endpoints, validation, confirmation, resume extraction
 - All nine source-of-truth documents exist and are internally consistent
 - No real secrets committed; provider keys server-side only
 - Basic test suite passes; frontend builds

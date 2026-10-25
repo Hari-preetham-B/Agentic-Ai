@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     """Application configuration.
 
     Fields with defaults are development-safe. Secrets (Supabase service role
-    key, LLM API key) are intentionally optional and default to None.
+    key, LLM API key, database URL) are intentionally optional and default to
+    None so the application remains importable without them.
     """
 
     # Environment
@@ -25,6 +26,10 @@ class Settings(BaseSettings):
     # Supabase (server-side only)
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
+
+    # Database (PostgreSQL via SQLAlchemy async + asyncpg)
+    # Example: postgresql+asyncpg://postgres:password@localhost:5432/careertwin
+    database_url: str | None = None
 
     # LLM provider (server-side only). Provider choice is intentionally not locked.
     llm_provider: str | None = None

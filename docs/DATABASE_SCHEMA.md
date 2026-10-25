@@ -1,37 +1,104 @@
-# Database Schema — CareerTwin (Planned)
-
-This document describes the planned major entities. It is a planned schema —
-these tables do NOT exist yet and no migrations are implemented in this stage.
-
-## Planned major entities
-
-| Entity | Purpose |
-|--------|---------|
-| profiles | User's CareerTwin core profile state |
-| education | Education history |
-| skills | Evidenced and asserted skills |
-| projects | Portfolio projects |
-| experience | Work / role history |
-| career_goals | Stated career objectives |
-| career_paths | Plausible career directions |
-| skill_gaps | Computed gaps vs target roles |
-| learning_plans | Ordered learning plans |
-| learning_items | Individual learning steps/milestones |
-| interview_sessions | Interview preparation sessions |
-| interview_answers | Answers given in sessions |
-| evidence_sources | Documents/sources providing evidence |
-| evidence_chunks | Chunks of evidence with embeddings |
-| claims | Claims extracted from profile/sources |
-| claim_evidence | Links between claims and evidence |
-| agent_runs | Executed agent runs (trace root) |
-| agent_events | Individual events within an agent run |
-
-## Notes
-- `pgvector` will support `evidence_chunks` embeddings for semantic retrieval.
-- Supabase Auth will own user accounts; profiles link to auth users.
-- PostgreSQL Row Level Security will enforce data ownership (future).
-- No `claims` confidence is stored as LLM self-reported values; confidence is
-  computed by the confidence engine.
+# Database Schema — CareerTwin
 
 ## Status
-Planned only. Do not pretend these tables exist.
+Implemented in Phase 2 (Profile + Onboarding). The following six core tables exist
+in PostgreSQL via SQLAlchemy + Alembic. All other tables (career_paths, skill_gaps,
+learning_plans, interview_sessions, evidence_sources, claims, agent_runs, ...) are
+planned for later phases and do NOT exist yet.
+
+## Implemented tables
+
+### profiles
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| user_id | UUID | nullable, indexed; bound to Supabase Auth identity in a later phase |
+| full_name | TEXT | nullable |
+| headline | TEXT | nullable |
+| email | TEXT | nullable |
+| phone | TEXT | nullable |
+| location | TEXT | nullable |
+| summary | TEXT | nullable |
+| profile_status | TEXT | NOT NULL, default `DRAFT`. Values: DRAFT / REVIEW / CONFIRMED |
+| created_at | TIMESTAMPTZ | NOT NULL, default now() |
+| updated_at | TIMESTAMPTZ | NOT NULL, default now() |
+
+### education
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| profile_id | UUID | FK → profiles.id, ON DELETE CASCADE |
+| institution | TEXT | NOT NULL |
+| degree | TEXT | nullable |
+| field_of_study | TEXT | nullable |
+| start_date | DATE | nullable |
+| end_date | DATE | nullable |
+| description | TEXT | nullable |
+| created_at | TIMESTAMPTZ | NOT NULL |
+
+### skills
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| profile_id | UUID | FK → profiles.id, ON DELETE CASCADE |
+| name | TEXT | NOT NULL |
+| category | TEXT | nullable |
+| proficiency | TEXT | CHECK: BEGINNER/INTERMEDIATE/ADVANCED/EXPERT or NULL |
+| years_experience | NUMERIC(3,1) | nullable |
+| source | TEXT | NOT NULL, default USER_CONFIRMED. CHECK: USER_CONFIRMED/DOCUMENT_EXTRACTED/SYSTEM_INFERRED |
+| created_at | TIMESTAMPTZ | NOT NULL |
+
+### projects
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| profile_id | UUID | FK → profiles.id, ON DELETE CASCADE |
+| name | TEXT | NOT NULL |
+| description | TEXT | nullable |
+| technologies | JSON | nullable |
+| role | TEXT | nullable |
+| outcomes | TEXT | nullable |
+| start_date | DATE | nullable |
+| end_date | DATE | nullable |
+| source | TEXT | NOT NULL, default USER_CONFIRMED. CHECK: USER_CONFIRMED/DOCUMENT_EXTRACTED/SYSTEM_INFERRED |
+| created_at | TIMESTAMPTZ | NOT NULL |
+
+### experience
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| profile_id | UUID | FK → profiles.id, ON DELETE CASCADE |
+| organization | TEXT | NOT NULL |
+| role | TEXT | NOT NULL |
+| description | TEXT | nullable |
+| achievements | TEXT | nullable |
+| start_date | DATE | nullable |
+| end_date | DATE | nullable |
+| is_current | BOOLEAN | NOT NULL, default false |
+| source | TEXT | NOT NULL, default USER_CONFIRMED. CHECK: USER_CONFIRMED/DOCUMENT_EXTRACTED/SYSTEM_INFERRED |
+| created_at | TIMESTAMPTZ | NOT NULL |
+
+### career_goals
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | primary key |
+| profile_id | UUID | FK → profiles.id, ON DELETE CASCADE |
+| target_role | TEXT | NOT NULL |
+| target_industry | TEXT | nullable |
+| target_domain | TEXT | nullable |
+| goal_description | TEXT | nullable |
+| priority | INTEGER | NOT NULL, default 1 |
+| created_at | TIMESTAMPTZ | NOT NULL |
+
+## Design
+- All child records reference `profiles.id` via foreign keys with cascading deletes.
+- UUID primary keys throughout.
+- Timestamps consistently applied.
+- Database constraints (CHECK on `proficiency` and `source`) complement Pydantic
+  application-level validation.
+- Migration: `alembic/versions/0001_initial_schema.py` (initial schema).
+
+## Not yet implemented
+career_paths, skill_gaps, learning_plans, learning_items, interview_sessions,
+interview_answers, evidence_sources, evidence_chunks, claims, claim_evidence,
+agent_runs, agent_events.

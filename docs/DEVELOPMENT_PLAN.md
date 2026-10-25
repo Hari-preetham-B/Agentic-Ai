@@ -1,6 +1,6 @@
 # Development Plan — CareerTwin
 
-## Phase 1 — Foundation (this stage)
+## Phase 1 — Foundation (implemented)
 **Goal:** Establish the repository structure, frontend shell, backend shell,
 shared contracts, environment configuration, source-of-truth documentation,
 basic tooling, and health-check functionality.
@@ -16,18 +16,34 @@ basic tooling, and health-check functionality.
 
 **Dependencies:** None.
 
-## Phase 2 — Profile and onboarding
-**Goal:** Resume/manual profile onboarding and the initial CareerTwin profile.
+## Phase 2 — Profile and onboarding (implemented)
+**Goal:** Create the canonical structured student profile that all future
+CareerTwin intelligence operates on. Support manual profile creation and
+resume upload, with validation, review, and confirmation.
 
 **Outcomes:**
-- Onboarding flow (start → resume → profile → review)
-- Profile Agent (foundation)
-- Profile storage in Supabase
-- Auth pages remain placeholders; Supabase Auth connected later
+- PostgreSQL/Supabase connected via SQLAlchemy 2.x async + asyncpg
+- Alembic initial migration: `profiles`, `education`, `skills`, `projects`,
+  `experience`, `career_goals` (with FKs, cascading deletes, UUID PKs,
+  timestamps, DB constraints)
+- Pydantic domain schemas (request/response/detail); SQLAlchemy models never
+  exposed directly
+- Profile service: CRUD, deterministic validation, confirmation lifecycle
+  (DRAFT → REVIEW → CONFIRMED)
+- Profile API: CRUD, detail, validation, confirmation, child-record endpoints
+- Resume parser (PDF/DOCX/TXT) behind `ResumeParser` protocol; 10 MB limit;
+  filename sanitization; no OCR, no LLM
+- `ProfileExtractor` protocol + temporary deterministic mock (marked temporary;
+  no LLM SDK)
+- `/profiles/extract-resume` and `/profiles/extract-resume/draft` endpoints
+- Typed frontend API client layer
+- Real onboarding flow: start → manual/resume → profile → review → confirm →
+  `/app/twin`
+- `/app/twin` displays the confirmed profile
 
 **Dependencies:** Phase 1.
 
-## Phase 3 — Agentic core
+## Phase 3 — Agentic core (next)
 **Goal:** The application-level orchestrator and selective agent invocation.
 
 **Outcomes:**

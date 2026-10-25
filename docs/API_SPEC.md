@@ -1,15 +1,55 @@
-# API Specification — CareerTwin (Planned)
+# API Specification — CareerTwin
 
-This document describes the future API surface at a high level. Only
-`GET /health` is implemented in this stage.
+## Data flow
+```
+Browser
+  ↓
+Next.js (http://localhost:3000)
+  ↓
+FastAPI (http://localhost:8000)
+  ↓
+SQLAlchemy async + asyncpg → PostgreSQL (Supabase)
+```
 
-## Future API groups
+## Implemented endpoints (Phase 2 — Profile + Onboarding)
 
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/health` | GET | Structured health check | Implemented (Phase 1) |
+| `/profiles` | POST | Create a new profile draft | Implemented |
+| `/profiles/{profile_id}` | GET | Get a profile by ID | Implemented |
+| `/profiles/{profile_id}/detail` | GET | Get a profile with all child records | Implemented |
+| `/profiles/{profile_id}` | PUT | Update a profile | Implemented |
+| `/profiles/{profile_id}` | DELETE | Delete a profile and all child records | Implemented |
+| `/profiles/{profile_id}/validate` | POST | Validate without confirming | Implemented |
+| `/profiles/{profile_id}/confirm` | POST | Confirm a profile (status → CONFIRMED) | Implemented |
+| `/profiles/{profile_id}/education` | POST | Add education record | Implemented |
+| `/profiles/{profile_id}/education` | GET | List education records | Implemented |
+| `/profiles/{profile_id}/education/{child_id}` | PUT | Update education record | Implemented |
+| `/profiles/{profile_id}/education/{child_id}` | DELETE | Delete education record | Implemented |
+| `/profiles/{profile_id}/skills` | POST | Add skill record | Implemented |
+| `/profiles/{profile_id}/skills` | GET | List skill records | Implemented |
+| `/profiles/{profile_id}/skills/{child_id}` | PUT | Update skill record | Implemented |
+| `/profiles/{profile_id}/skills/{child_id}` | DELETE | Delete skill record | Implemented |
+| `/profiles/{profile_id}/projects` | POST | Add project record | Implemented |
+| `/profiles/{profile_id}/projects` | GET | List project records | Implemented |
+| `/profiles/{profile_id}/projects/{child_id}` | PUT | Update project record | Implemented |
+| `/profiles/{profile_id}/projects/{child_id}` | DELETE | Delete project record | Implemented |
+| `/profiles/{profile_id}/experience` | POST | Add experience record | Implemented |
+| `/profiles/{profile_id}/experience` | GET | List experience records | Implemented |
+| `/profiles/{profile_id}/experience/{child_id}` | PUT | Update experience record | Implemented |
+| `/profiles/{profile_id}/experience/{child_id}` | DELETE | Delete experience record | Implemented |
+| `/profiles/{profile_id}/career-goals` | POST | Add career goal | Implemented |
+| `/profiles/{profile_id}/career-goals` | GET | List career goals | Implemented |
+| `/profiles/{profile_id}/career-goals/{child_id}` | PUT | Update career goal | Implemented |
+| `/profiles/{profile_id}/career-goals/{child_id}` | DELETE | Delete career goal | Implemented |
+| `/profiles/extract-resume` | POST | Upload resume, return extracted text | Implemented |
+| `/profiles/extract-resume/draft` | POST | Upload resume, return structured ProfileDraft | Implemented |
+
+## Planned (future) endpoints
 | Group | Purpose | Status |
 |-------|---------|--------|
 | `/auth` | Authentication (Supabase Auth + FastAPI validation) | Not implemented |
-| `/profile` | CareerTwin profile CRUD | Not implemented |
-| `/careertwin` | Evolving professional state | Not implemented |
 | `/careers` | Career path analysis | Not implemented |
 | `/skills` | Skill intelligence and gaps | Not implemented |
 | `/roadmap` | Learning roadmaps | Not implemented |
@@ -17,21 +57,18 @@ This document describes the future API surface at a high level. Only
 | `/evidence` | Evidence sources and claims | Not implemented |
 | `/agent-runs` | Agent execution traces | Not implemented |
 
-## Implemented in this stage
-
-- `GET /health` — structured health check:
-  ```json
-  {
-    "status": "ok",
-    "service": "careertwin-api",
-    "environment": "development"
-  }
-  ```
-- `GET /docs` — FastAPI interactive documentation
-- `GET /redoc` — ReDoc documentation
+## Health check (implemented)
+```json
+{
+  "status": "ok",
+  "service": "careertwin-api",
+  "environment": "development"
+}
+```
 
 ## Design principles
 - Provider API keys and Supabase service role key are server-side only.
 - Frontend calls the backend over HTTP; frontend never holds secrets.
-- Authentication and authorization enforced by FastAPI (future Supabase Auth +
-  RLS).
+- Every API operation requires a profile ID; ownership checks are possible
+  once Supabase Auth is implemented.
+- Structured error responses; no raw stack traces to users.

@@ -22,7 +22,7 @@ Supabase PostgreSQL + pgvector + Storage (future)
 
 ## Implemented foundation vs future architecture
 
-### Implemented in this stage (foundation)
+### Implemented in this stage (foundation + profile/onboarding)
 - Next.js frontend shell with App Router, Tailwind CSS, and Motion
 - Route structure: `/`, `/auth/*`, `/onboarding/*`, `/app/*`
 - FastAPI backend shell with centralized Pydantic Settings config
@@ -31,16 +31,35 @@ Supabase PostgreSQL + pgvector + Storage (future)
 - Source-of-truth documentation
 - Git repository on `feat/foundation`
 
+**Profile + Onboarding (Phase 2):**
+- SQLAlchemy 2.x async + asyncpg persistence against PostgreSQL/Supabase
+- Alembic initial migration: `profiles`, `education`, `skills`, `projects`,
+  `experience`, `career_goals`
+- Pydantic domain schemas (request/response/detail)
+- Profile service layer: CRUD, validation, confirmation
+- Profile API: `POST/GET/PUT/DELETE /profiles/{id}`, detail endpoint,
+  validation, confirmation
+- Child-record endpoints: education, skills, projects, experience,
+  career-goals
+- Resume parser service (PDF via PyMuPDF, DOCX via python-docx, TXT)
+- Profile extraction boundary (`ProfileExtractor` protocol + temporary
+  deterministic mock)
+- `/profiles/extract-resume` (raw text) and `/profiles/extract-resume/draft`
+  (structured draft) endpoints
+- Typed frontend API client layer (`src/lib/api/client.ts`)
+- Real onboarding flow: start → choose manual/resume → profile → review →
+  confirm → `/app/twin`
+- `/app/twin` displays the confirmed profile
+
 ### Future architecture (not yet implemented)
 - Six specialized agents (Profile, Career, Skill Gap, Learning, Interview,
   Evidence)
 - Application-level orchestrator and LangGraph stateful workflows
 - LLM provider abstraction (`LLMProvider` protocol)
-- Supabase PostgreSQL, pgvector, Auth, and Storage
-- Database schema and migrations
-- Authentication and Row Level Security
+- Supabase pgvector, Auth, and Storage (application data schema implemented;
+  Auth/RLS future)
 - RAG / evidence pipeline
-- Resume parsing
+- Resume semantic extraction via LLM (currently deterministic mock)
 - Interview evaluation, skill-gap algorithms, career recommendations,
   confidence calculations
 
@@ -122,6 +141,40 @@ Nothing deployed in this stage.
 The CareerTwin (user's professional state) is owned by the user and stored
 in Supabase PostgreSQL. Agent-derived analysis and evidence references are
 linked to the owning profile.
+
+## Profile persistence
+Profiles and their child records (education, skills, projects, experience,
+career goals) are stored in PostgreSQL via SQLAlchemy 2.x async. Every child
+record references `profiles.id` with a foreign key and cascading delete.
+Profile status follows a controlled lifecycle: `DRAFT → REVIEW → CONFIRMED`.
+Only an explicit user confirmation sets `CONFIRMED`; extracted resume data is
+never auto-confirmed.
+
+## Document processing boundary
+Resume text extraction sits behind the `ResumeParser` protocol. Supported
+formats: PDF (PyMuPDF), DOCX (python-docx), TXT. Validation (file type, size
+≤ 10 MB, filename sanitization) happens before parsing. Parsing returns raw
+text only — no semantic extraction and no LLM calls in this phase.
+
+## Profile extraction boundary
+The `ProfileExtractor` protocol turns raw document text into a structured
+`ProfileDraft`. This phase provides a temporary deterministic mock (clearly
+marked); the future Profile Agent replaces it. The rest of the application
+depends on this abstraction, never directly on an LLM SDK. The draft is not
+persisted as confirmed user data until the user reviews and confirms.
+
+## Validation service
+A deterministic profile validation service checks structural integrity and
+business rules (name present, at least one skill, at least one career goal
+before confirmation, valid dates, valid enum/source values, no duplicate
+skills). It returns structured `{ valid, errors, warnings }` results. Errors
+block confirmation; warnings do not block saving.
+
+## API client boundary
+The frontend uses a typed API client layer (`src/lib/api/client.ts`) so
+components never scatter raw `fetch()` calls. The client mirrors backend
+Pydantic schemas and handles errors (network, validation, upload, server).
+Provider API keys and the Supabase service role key never reach the frontend.
 
 ## Security boundaries
 - Provider API keys and Supabase service role key: server-side only
