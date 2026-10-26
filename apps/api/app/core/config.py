@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # LLM provider (server-side only). Provider choice is intentionally not locked.
     llm_provider: str | None = None
+    llm_model: str | None = None
     llm_api_key: str | None = None
 
     model_config = SettingsConfigDict(

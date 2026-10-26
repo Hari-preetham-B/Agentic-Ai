@@ -1,14 +1,31 @@
-"""Agent architecture placeholder.
+"""Agent package."""
 
-No agents are implemented in this stage. The six planned agents live in
-docs/AGENTS.md:
+from app.agents.contracts import (  # noqa: F401
+    AgentProtocol,
+    AgentResult,
+    AgentState,
+    AgentStatus,
+    ALL_STATUSES,
+)
+from app.agents.profile_agent import ProfileAgent  # noqa: F401
+from app.agents.stubs import (  # noqa: F401
+    CareerAgent,
+    EvidenceAgent,
+    InterviewAgent,
+    LearningAgent,
+    SkillGapAgent,
+)
 
-1. Profile Agent
-2. Career Agent
-3. Skill Gap Agent
-4. Learning Agent
-5. Interview Agent
-6. Evidence Agent
-
-This directory exists only to establish the future package boundary.
-"""
+__all__ = [
+    "AgentProtocol",
+    "AgentResult",
+    "AgentState",
+    "AgentStatus",
+    "ALL_STATUSES",
+    "ProfileAgent",
+    "CareerAgent",
+    "SkillGapAgent",
+    "LearningAgent",
+    "InterviewAgent",
+    "EvidenceAgent",
+]

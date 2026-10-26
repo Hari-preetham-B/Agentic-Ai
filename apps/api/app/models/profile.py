@@ -8,12 +8,13 @@ Alembic migration uses PostgreSQL-specific types for production.
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from sqlalchemy import (
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
@@ -170,3 +171,54 @@ class CareerGoal(Base):
     created_at: Mapped[created_at]
 
     profile: Mapped["Profile"] = relationship(back_populates="career_goals")
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[uuid_pk]
+    profile_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, nullable=True, index=True
+    )
+    request_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    capability: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
+    provider: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    events: Mapped[list["AgentEvent"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class AgentEvent(Base):
+    __tablename__ = "agent_events"
+
+    id: Mapped[uuid_pk]
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tool_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payload: Mapped[Optional[dict]] = mapped_column(sa_json(), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped["AgentRun"] = relationship(back_populates="events")

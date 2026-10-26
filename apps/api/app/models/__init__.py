@@ -1,6 +1,8 @@
 """SQLAlchemy models package."""
 
 from app.models.profile import (  # noqa: F401
+    AgentEvent,
+    AgentRun,
     CareerGoal,
     Education,
     Experience,
@@ -16,4 +18,6 @@ __all__ = [
     "Project",
     "Experience",
     "CareerGoal",
+    "AgentRun",
+    "AgentEvent",
 ]
