@@ -1,10 +1,15 @@
 """Tests for the agent runs API endpoints."""
 
-import anyio
+import uuid
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.database import get_engine
 from app.main import app
+from app.models.career import Career, CareerSkill
+from app.models.profile import CareerGoal, Education, Experience, Profile, Skill
 
 
 @pytest.fixture
@@ -15,13 +20,80 @@ async def client() -> AsyncClient:
 
 @pytest.mark.anyio
 async def test_agent_runs_endpoints(client: AsyncClient) -> None:
-    # POST /agent-runs with a stub capability (no profile needed)
+    # Seed a profile and career data so career_analysis can run end-to-end.
+    engine = get_engine()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    profile_id = uuid.uuid4()
+    async with factory() as sess:
+        sess.add(
+            Profile(
+                id=profile_id,
+                full_name="Test User",
+                headline="Software Engineer",
+                email="test@example.com",
+                profile_status="CONFIRMED",
+            )
+        )
+        sess.add(
+            Skill(
+                profile_id=profile_id,
+                name="Python",
+                category="Programming Language",
+                proficiency="ADVANCED",
+                source="USER_CONFIRMED",
+            )
+        )
+        sess.add(
+            Skill(
+                profile_id=profile_id,
+                name="SQL",
+                category="Database",
+                proficiency="INTERMEDIATE",
+                source="USER_CONFIRMED",
+            )
+        )
+
+        career_id = uuid.uuid4()
+        sess.add(
+            Career(
+                id=career_id,
+                slug="software-engineer",
+                title="Software Engineer",
+                domain="Software Development",
+                summary="Designs, builds, tests, and maintains software applications.",
+                description="Software engineer career profile.",
+            )
+        )
+        sess.add(
+            CareerSkill(
+                career_id=career_id,
+                skill_name="Python",
+                category="Programming Language",
+                importance="CORE",
+                minimum_level="INTERMEDIATE",
+                description="Core programming language.",
+            )
+        )
+        sess.add(
+            CareerSkill(
+                career_id=career_id,
+                skill_name="SQL",
+                category="Database",
+                importance="CORE",
+                minimum_level="INTERMEDIATE",
+                description="Database query language.",
+            )
+        )
+        await sess.commit()
+
+    # POST /agent-runs with career_analysis capability
     resp = await client.post(
         "/agent-runs",
         json={
-            "profile_id": "00000000-0000-0000-0000-000000000001",
+            "profile_id": str(profile_id),
             "capability": "career_analysis",
-            "input": "Analyze my career options.",
+            "input": "software-engineer",
         },
     )
     assert resp.status_code == 202, resp.text

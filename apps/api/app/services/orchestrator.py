@@ -17,6 +17,13 @@ from app.core.llm import FakeLLMProvider, LLMProvider
 from app.services.repositories import AgentRunRepository
 from app.services.trace import TraceService
 from app.tools import tool_registry
+from app.tools.career_tools import (
+    build_get_career_tool,
+    build_get_career_recommendations_tool,
+    build_get_career_requirements_tool,
+    build_list_careers_tool,
+    build_calculate_skill_match_tool,
+)
 from app.tools.profile_tool import build_get_profile_tool
 from app.workflows.agent_workflow import AgentWorkflow
 
@@ -89,6 +96,21 @@ class AgentOrchestrator:
         if self.session is not None:
             tool_registry.register(build_get_profile_tool(self.session))
 
+        # Register career tools for career-related capabilities.
+        if self.session is not None and capability in (
+            "career_analysis",
+            "skill_gap",
+            "career_recommendations",
+        ):
+            tool_registry.register(build_get_career_tool(self.session))
+            tool_registry.register(build_list_careers_tool(self.session))
+            tool_registry.register(build_get_career_requirements_tool(self.session))
+            tool_registry.register(build_calculate_skill_match_tool(self.session))
+            if capability == "career_recommendations":
+                tool_registry.register(
+                    build_get_career_recommendations_tool(self.session)
+                )
+
         # Create the run and record RUN_STARTED and AGENT_STARTED.
         run = await self.trace.start_run(
             request_id=request_id,
@@ -105,13 +127,27 @@ class AgentOrchestrator:
         )
 
         try:
+            # Build context: pass career_slug for career-related capabilities.
+            context: dict[str, Any] = {}
+            if profile_id:
+                context["profile_id"] = profile_id
+            if capability in ("career_analysis", "skill_gap"):
+                context["career_slug"] = user_input or context.get(
+                    "career_slug", ""
+                )
+                # If user_input looks like a slug, use it; otherwise the agent
+                # will need the caller to have set it. We default user_input
+                # to the slug when it matches a known career slug.
+            elif capability == "career_recommendations":
+                context["profile_id"] = profile_id
+
             final_state = await self.workflow.run(
                 current_agent=agent_name,
                 profile_id=profile_id,
                 request_id=request_id,
                 run_id=str(run.id),
                 user_input=user_input,
-                context={"profile_id": profile_id} if profile_id else None,
+                context=context,
             )
 
             if final_state.status == "FAILED":

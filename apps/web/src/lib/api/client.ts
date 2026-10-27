@@ -421,6 +421,187 @@ export async function uploadResume(
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Careers
+// ---------------------------------------------------------------------------
+
+export interface CareerSkill {
+  skill_name: string;
+  category: string | null;
+  importance: string;
+  minimum_level: string | null;
+  description: string | null;
+}
+
+export interface CareerTool {
+  tool_name: string;
+  category: string | null;
+  importance: string;
+}
+
+export interface CareerProject {
+  project_type: string;
+  description: string;
+  skills_demonstrated: string[] | null;
+  difficulty: string | null;
+}
+
+export interface CareerSource {
+  title: string;
+  publisher: string;
+  url: string | null;
+  source_type: string;
+  published_at: string | null;
+  reliability: string;
+}
+
+export interface CareerResponse {
+  id: string;
+  slug: string;
+  title: string;
+  domain: string;
+  summary: string | null;
+  description: string | null;
+  education_expectations: Record<string, unknown> | null;
+  experience_expectations: Record<string, unknown> | null;
+  skills: CareerSkill[];
+  tools: CareerTool[];
+  projects: CareerProject[];
+  sources: CareerSource[];
+}
+
+export interface CareerListResponse {
+  careers: CareerResponse[];
+}
+
+export interface CareerRequirementsResponse {
+  career_id: string;
+  slug: string;
+  title: string;
+  domain: string;
+  skills: CareerSkill[];
+  tools: CareerTool[];
+  projects: CareerProject[];
+  sources: CareerSource[];
+}
+
+export interface CareerRecommendationItem {
+  career_id: string;
+  career_title: string;
+  career_domain: string;
+  fit_score: number;
+  matched_core_skills: string[];
+  top_gaps: string[];
+  reason: string;
+}
+
+export interface CareerRecommendationsResponse {
+  recommendations: CareerRecommendationItem[];
+}
+
+export interface CareerRecommendationsRequest {
+  profile_id: string;
+  limit?: number;
+}
+
+export interface SkillMatchDetail {
+  skill_name: string;
+  category: string | null;
+  importance: string;
+  user_level: string | null;
+  required_level: string | null;
+  status: string;
+  score: number;
+  reason: string;
+}
+
+export interface CareerAnalysisOutput {
+  career_id: string;
+  career_title: string;
+  fit_score: number;
+  fit_summary: string;
+  strengths: string[];
+  skill_gaps: string[];
+  recommended_focus: string[];
+  relevant_projects: string[];
+  caveats: string[];
+  metadata: Record<string, unknown>;
+}
+
+export interface SkillGapAnalysisOutput {
+  career_id: string;
+  career_title: string;
+  overall_score: number;
+  priority_gaps: string[];
+  matched_strengths: string[];
+  recommendations: string[];
+  caveats: string[];
+  metadata: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Career API functions
+// ---------------------------------------------------------------------------
+
+export async function listCareers(): Promise<CareerResponse[]> {
+  const { careers } = await request<CareerListResponse>(
+    `${API_BASE}/careers`,
+  );
+  return careers;
+}
+
+export async function getCareer(slug: string): Promise<CareerResponse> {
+  return request<CareerResponse>(`${API_BASE}/careers/${encodeURIComponent(slug)}`);
+}
+
+export async function getCareerRequirements(
+  slug: string,
+): Promise<CareerRequirementsResponse> {
+  return request<CareerRequirementsResponse>(
+    `${API_BASE}/careers/${encodeURIComponent(slug)}/requirements`,
+  );
+}
+
+export async function getCareerRecommendations(
+  payload: CareerRecommendationsRequest,
+): Promise<CareerRecommendationItem[]> {
+  const { recommendations } = await request<CareerRecommendationsResponse>(
+    `${API_BASE}/careers/recommendations`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return recommendations;
+}
+
+// ---------------------------------------------------------------------------
+// Agent runs
+// ---------------------------------------------------------------------------
+
+export interface AgentRunRequest {
+  profile_id: string;
+  capability: string;
+  input: string;
+}
+
+export interface AgentRunResponse {
+  run_id: string | null;
+  status: string;
+  agent: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
+export async function runAgentCapability(
+  payload: AgentRunRequest,
+): Promise<AgentRunResponse> {
+  return request<AgentRunResponse>(`${API_BASE}/agent-runs`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function extractResumeDraft(
   file: File,
 ): Promise<ProfileDraft> {

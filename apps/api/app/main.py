@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.routes import (
     agent_runs_router,
+    careers_router,
     health,
     profiles_router,
     resume_router,
@@ -29,6 +30,7 @@ app.include_router(health.router)
 app.include_router(profiles_router)
 app.include_router(resume_router)
 app.include_router(agent_runs_router)
+app.include_router(careers_router)
 
 
 @app.get("/", tags=["meta"])

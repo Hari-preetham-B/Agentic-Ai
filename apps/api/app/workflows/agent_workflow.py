@@ -76,12 +76,14 @@ class AgentWorkflow:
         ``state.context["tool_requested"]``.
         """
         from app.agents import ProfileAgent
-        from app.agents.stubs import (
+        from app.agents.career_agents import (
             CareerAgent,
+            SkillGapAgent,
+        )
+        from app.agents.stubs import (
             EvidenceAgent,
             InterviewAgent,
             LearningAgent,
-            SkillGapAgent,
         )
 
         agent_map = {

@@ -13,6 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.career import (
+    Career,
+    CareerProject,
+    CareerSkill,
+    CareerSource,
+    CareerTool,
+)
 from app.models.profile import AgentEvent, AgentRun, Profile
 
 
@@ -116,8 +123,56 @@ class AgentEventRepository:
         return result.scalars().all()
 
 
+class CareerRepository:
+    """Repository for curated career knowledge."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list_careers(self) -> Sequence[Career]:
+        result = await self.session.execute(select(Career).order_by(Career.title))
+        return result.scalars().all()
+
+    async def get_by_slug(self, slug: str) -> Career | None:
+        result = await self.session.execute(
+            select(Career).where(Career.slug == slug)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, career_id: UUID) -> Career | None:
+        result = await self.session.execute(
+            select(Career).where(Career.id == career_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_skills(self, career_id: UUID) -> Sequence[CareerSkill]:
+        result = await self.session.execute(
+            select(CareerSkill).where(CareerSkill.career_id == career_id)
+        )
+        return result.scalars().all()
+
+    async def get_tools(self, career_id: UUID) -> Sequence[CareerTool]:
+        result = await self.session.execute(
+            select(CareerTool).where(CareerTool.career_id == career_id)
+        )
+        return result.scalars().all()
+
+    async def get_projects(self, career_id: UUID) -> Sequence[CareerProject]:
+        result = await self.session.execute(
+            select(CareerProject).where(CareerProject.career_id == career_id)
+        )
+        return result.scalars().all()
+
+    async def get_sources(self, career_id: UUID) -> Sequence[CareerSource]:
+        result = await self.session.execute(
+            select(CareerSource).where(CareerSource.career_id == career_id)
+        )
+        return result.scalars().all()
+
+
 __all__ = [
     "ProfileRepository",
     "AgentRunRepository",
     "AgentEventRepository",
+    "CareerRepository",
 ]

@@ -1,9 +1,8 @@
-"""Deterministic stubs for the five future agents.
+"""Deterministic stubs for agents not yet implemented.
 
-These establish the agent contracts and stable identities. Real intelligence is
-NOT implemented in this phase. Each stub returns a structured result indicating
-the capability is not yet active, so the orchestrator can route and execute
-without fabricating results.
+Learning, Interview, and Evidence agents remain as contract stubs in this
+phase. Career and Skill Gap agents have real implementations in
+career_agents.py.
 """
 
 from __future__ import annotations
@@ -41,22 +40,6 @@ class _StubAgent:
         )
 
 
-class CareerAgent(_StubAgent):
-    """Career Agent — future: analyze career paths and fit."""
-    name = "career_agent"
-
-    def __init__(self) -> None:
-        super().__init__(self.name, "career_analysis")
-
-
-class SkillGapAgent(_StubAgent):
-    """Skill Gap Agent — future: compare skills to career requirements."""
-    name = "skill_gap_agent"
-
-    def __init__(self) -> None:
-        super().__init__(self.name, "skill_gap")
-
-
 class LearningAgent(_StubAgent):
     """Learning Agent — future: construct learning plans."""
     name = "learning_agent"
@@ -82,8 +65,6 @@ class EvidenceAgent(_StubAgent):
 
 
 __all__ = [
-    "CareerAgent",
-    "SkillGapAgent",
     "LearningAgent",
     "InterviewAgent",
     "EvidenceAgent",

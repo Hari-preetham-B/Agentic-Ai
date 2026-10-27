@@ -7,13 +7,15 @@ from app.agents.contracts import (  # noqa: F401
     AgentStatus,
     ALL_STATUSES,
 )
+from app.agents.career_agents import (  # noqa: F401
+    CareerAgent,
+    SkillGapAgent,
+)
 from app.agents.profile_agent import ProfileAgent  # noqa: F401
 from app.agents.stubs import (  # noqa: F401
-    CareerAgent,
     EvidenceAgent,
     InterviewAgent,
     LearningAgent,
-    SkillGapAgent,
 )
 
 __all__ = [

@@ -51,4 +51,57 @@ class CapabilityOutput(BaseModel):
     agent_name: str
 
 
-__all__ = ["ProfileSummary", "CapabilityOutput"]
+class SkillMatchDetail(BaseModel):
+    """A single skill comparison result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    skill_name: str
+    category: str | None = None
+    importance: str
+    user_level: str | None = None
+    required_level: str | None = None
+    status: str  # MATCHED / PARTIAL / MISSING
+    score: float
+    reason: str
+
+
+class CareerAnalysis(BaseModel):
+    """Typed output from the Career Agent."""
+
+    model_config = ConfigDict(frozen=True)
+
+    career_id: str
+    career_title: str
+    fit_score: float
+    fit_summary: str
+    strengths: list[str] = Field(default_factory=list)
+    skill_gaps: list[str] = Field(default_factory=list)
+    recommended_focus: list[str] = Field(default_factory=list)
+    relevant_projects: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SkillGapAnalysis(BaseModel):
+    """Typed output from the Skill Gap Agent."""
+
+    model_config = ConfigDict(frozen=True)
+
+    career_id: str
+    career_title: str
+    overall_score: float
+    priority_gaps: list[str] = Field(default_factory=list)
+    matched_strengths: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+__all__ = [
+    "ProfileSummary",
+    "CapabilityOutput",
+    "SkillMatchDetail",
+    "CareerAnalysis",
+    "SkillGapAnalysis",
+]

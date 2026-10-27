@@ -143,3 +143,21 @@ __all__ = [
     "ToolRegistry",
     "tool_registry",
 ]
+
+from app.tools.career_tools import (  # noqa: E402,F401
+    GetCareerInput,
+    GetCareerOutput,
+    GetCareerTool,
+    ListCareersInput,
+    ListCareersOutput,
+    ListCareersTool,
+    GetCareerRequirementsInput,
+    GetCareerRequirementsOutput,
+    GetCareerRequirementsTool,
+    CalculateSkillMatchInput,
+    CalculateSkillMatchOutput,
+    CalculateSkillMatchTool,
+    GetCareerRecommendationsInput,
+    GetCareerRecommendationsOutput,
+    GetCareerRecommendationsTool,
+)
