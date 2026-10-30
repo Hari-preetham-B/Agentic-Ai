@@ -14,6 +14,14 @@ from app.models.evidence import (  # noqa: F401
     EvidenceDocument,
     EvidenceSource,
 )
+from app.models.learning import (  # noqa: F401
+    LearningResource,
+    LearningResourceSkill,
+    Roadmap,
+    RoadmapItem,
+    RoadmapResource,
+    SkillDependency,
+)
 from app.models.profile import (  # noqa: F401
     AgentEvent,
     AgentRun,
@@ -44,4 +52,10 @@ __all__ = [
     "EvidenceChunk",
     "Claim",
     "ClaimEvidence",
+    "LearningResource",
+    "LearningResourceSkill",
+    "Roadmap",
+    "RoadmapItem",
+    "RoadmapResource",
+    "SkillDependency",
 ]

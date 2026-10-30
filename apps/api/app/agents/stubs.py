@@ -40,14 +40,6 @@ class _StubAgent:
         )
 
 
-class LearningAgent(_StubAgent):
-    """Learning Agent — future: construct learning plans."""
-    name = "learning_agent"
-
-    def __init__(self) -> None:
-        super().__init__(self.name, "learning_plan")
-
-
 class InterviewAgent(_StubAgent):
     """Interview Agent — future: generate and evaluate interview questions."""
     name = "interview_agent"

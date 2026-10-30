@@ -12,10 +12,10 @@ from app.agents.career_agents import (  # noqa: F401
     SkillGapAgent,
 )
 from app.agents.evidence_agents import EvidenceAgent  # noqa: F401
+from app.agents.learning_agents import LearningAgent  # noqa: F401
 from app.agents.profile_agent import ProfileAgent  # noqa: F401
 from app.agents.stubs import (  # noqa: F401
     InterviewAgent,
-    LearningAgent,
 )
 
 __all__ = [

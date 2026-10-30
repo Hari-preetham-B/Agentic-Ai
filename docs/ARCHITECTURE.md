@@ -202,6 +202,27 @@ Generated Response
   → SUPPORTED / INFERRED / UNCERTAIN / CONTRADICTED
 ```
 
+## Learning intelligence (Phase 6)
+Learning intelligence transforms skill gaps into sequenced, prioritized
+learning roadmaps. The pipeline is:
+
+```
+CareerTwin Profile
+  → Target Career
+  → Deterministic Skill Gap (SkillMatchingEngine)
+  → Skill Dependencies (SkillDependencyService — DAG)
+  → Learning Resource Catalog
+  → Resource Matching (LearningResourceMatcher)
+  → Priority Engine (RoadmapPriorityEngine — P0/P1/P2)
+  → Sequencing (RoadmapSequenceEngine — topological sort)
+  → Personalized Roadmap (LearningRoadmapService)
+  → Evidence-Aware Recommendations
+```
+
+Roadmaps are persisted and can be regenerated when profile changes.
+LLMs may explain rationale but never determine gaps, prerequisites,
+resource ranking, or sequencing.
+
 Embeddings are abstracted behind `EmbeddingProvider` (similar to `LLMProvider`).
 A `FakeEmbeddingProvider` is provided for tests. pgvector's `<=>` operator
 is used for native cosine-distance search in production (PostgreSQL). SQLite

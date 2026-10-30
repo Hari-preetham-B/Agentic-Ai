@@ -81,9 +81,9 @@ class AgentWorkflow:
             SkillGapAgent,
         )
         from app.agents.evidence_agents import EvidenceAgent
+        from app.agents.learning_agents import LearningAgent
         from app.agents.stubs import (
             InterviewAgent,
-            LearningAgent,
         )
 
         agent_map = {

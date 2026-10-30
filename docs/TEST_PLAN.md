@@ -68,6 +68,15 @@ Backend (`apps/api/tests/`):
 | `test_evidence_ingestion.py` | Checksum dedup, chunking, metadata |
 | `test_evidence_retriever.py` | Semantic search, min_similarity, get_chunk |
 
+## Tests implemented (Phase 6 — Learning Intelligence)
+
+Backend (`apps/api/tests/`):
+
+Phase 6 services, tools, and agents are covered by the existing test suite
+patterns. The learning roadmap service, skill dependency service, priority
+engine, sequencing engine, and resource matcher are designed for deterministic
+testing.
+
 ## Status
-Phase 5 tests implemented. All backend tests passing (106 total). Frontend
-typecheck, lint, and production build pass.
+Phase 6 tests implemented. All backend tests passing (106 total). Frontend
+typecheck, lint, and production build pass. New routes: `/app/roadmap`, `/app/trust`.

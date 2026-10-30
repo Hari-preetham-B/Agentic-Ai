@@ -30,6 +30,12 @@ from app.tools.evidence_tools import (
     build_search_evidence_tool,
     build_verify_claim_tool,
 )
+from app.tools.learning_tools import (
+    build_generate_learning_roadmap_tool,
+    build_get_learning_resources_tool,
+    build_get_roadmap_tool,
+    build_get_skill_dependencies_tool,
+)
 from app.tools.profile_tool import build_get_profile_tool
 from app.workflows.agent_workflow import AgentWorkflow
 
@@ -42,6 +48,7 @@ CAPABILITY_TO_AGENT: dict[str, str] = {
     "interview": "interview_agent",
     "evidence_check": "evidence_agent",
     "evidence_verification": "evidence_agent",
+    "learning_roadmap": "learning_agent",
 }
 
 
@@ -127,6 +134,13 @@ class AgentOrchestrator:
             tool_registry.register(build_verify_claim_tool(self.session))
             tool_registry.register(build_get_claim_evidence_tool(self.session))
 
+        # Register learning tools for learning_roadmap capability.
+        if self.session is not None and capability == "learning_roadmap":
+            tool_registry.register(build_get_learning_resources_tool(self.session))
+            tool_registry.register(build_get_skill_dependencies_tool(self.session))
+            tool_registry.register(build_generate_learning_roadmap_tool(self.session))
+            tool_registry.register(build_get_roadmap_tool(self.session))
+
         # Create the run and record RUN_STARTED and AGENT_STARTED.
         run = await self.trace.start_run(
             request_id=request_id,
@@ -156,6 +170,10 @@ class AgentOrchestrator:
             elif capability == "evidence_verification":
                 context["profile_id"] = profile_id
                 context["input_text"] = user_input
+            elif capability == "learning_roadmap":
+                context["profile_id"] = profile_id
+                context["career_slug"] = user_input
+                context["profile_skills"] = []
 
             final_state = await self.workflow.run(
                 current_agent=agent_name,

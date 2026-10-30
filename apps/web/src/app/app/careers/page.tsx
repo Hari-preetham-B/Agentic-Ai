@@ -96,6 +96,12 @@ export default function CareersPage() {
           >
             ← Back to careers
           </Link>
+          <Link
+            href={`/app/roadmap`}
+            className="inline-flex items-center gap-2 rounded-sm border border-border-soft bg-panel px-3 py-1 font-mono text-xs text-muted hover:bg-panel-hover"
+          >
+            Build roadmap →
+          </Link>
         </div>
         <PageHeader
           title={detailCareer.title}

@@ -56,6 +56,16 @@ SQLAlchemy async + asyncpg → PostgreSQL (Supabase)
 | `/claims/{claim_id}/evidence` | GET | Get evidence linked to a claim | Implemented |
 | `/evidence/ingest` | POST | Ingest an evidence document (idempotent) | Implemented |
 
+## Implemented endpoints (Phase 6 — Learning Intelligence)
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/learning/resources` | GET | List learning resources | Implemented |
+| `/learning/dependencies/{skill_name}` | GET | Get skill dependencies for a skill | Implemented |
+| `/learning/roadmaps` | POST | Generate a learning roadmap | Implemented |
+| `/learning/roadmaps/{roadmap_id}` | GET | Get a roadmap by ID | Implemented |
+| `/learning/roadmaps/{roadmap_id}/regenerate` | POST | Regenerate a roadmap | Implemented |
+
 ## Planned (future) endpoints
 | Group | Purpose | Status |
 |-------|---------|--------|
