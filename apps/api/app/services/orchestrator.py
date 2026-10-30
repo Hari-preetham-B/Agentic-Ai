@@ -44,6 +44,14 @@ from app.tools.interview_tools import (
     build_get_next_interview_question_tool,
     build_submit_interview_answer_tool,
 )
+from app.tools.careertwin_tools import (
+    build_calculate_career_readiness_tool,
+    build_get_careertwin_conflicts_tool,
+    build_get_careertwin_insights_tool,
+    build_get_careertwin_state_tool,
+    build_get_stale_derived_state_tool,
+    build_refresh_careertwin_state_tool,
+)
 from app.tools.profile_tool import build_get_profile_tool
 from app.workflows.agent_workflow import AgentWorkflow
 
@@ -57,6 +65,7 @@ CAPABILITY_TO_AGENT: dict[str, str] = {
     "evidence_check": "evidence_agent",
     "evidence_verification": "evidence_agent",
     "learning_roadmap": "learning_agent",
+    "careertwin_analysis": "careertwin_agent",
 }
 
 
@@ -158,6 +167,15 @@ class AgentOrchestrator:
             tool_registry.register(build_evaluate_interview_answer_tool(self.session))
             tool_registry.register(build_get_interview_results_tool(self.session))
 
+        # Register careertwin tools for careertwin_analysis capability.
+        if self.session is not None and capability == "careertwin_analysis":
+            tool_registry.register(build_get_careertwin_state_tool(self.session))
+            tool_registry.register(build_calculate_career_readiness_tool(self.session))
+            tool_registry.register(build_get_careertwin_insights_tool(self.session))
+            tool_registry.register(build_get_careertwin_conflicts_tool(self.session))
+            tool_registry.register(build_get_stale_derived_state_tool(self.session))
+            tool_registry.register(build_refresh_careertwin_state_tool(self.session))
+
         # Create the run and record RUN_STARTED and AGENT_STARTED.
         run = await self.trace.start_run(
             request_id=request_id,
@@ -193,7 +211,10 @@ class AgentOrchestrator:
                 context["profile_skills"] = []
             elif capability == "interview":
                 context["profile_id"] = profile_id
-                context["capability"] = user_input or "create_session" 
+                context["capability"] = user_input or "create_session"
+            elif capability == "careertwin_analysis":
+                context["profile_id"] = profile_id
+                context["active_target_career"] = user_input
 
             final_state = await self.workflow.run(
                 current_agent=agent_name,

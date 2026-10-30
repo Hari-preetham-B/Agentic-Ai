@@ -88,6 +88,22 @@ to the specific task should run.
 - **LLM responsibilities:** question wording, qualitative evaluation, feedback
   generation
 
+### 8. CareerTwin Agent (Phase 8 — implemented)
+- **Purpose:** Produce a typed explanation layer over the unified CareerTwin
+  state, combining profile, career fit, skill gaps, roadmap, interview
+  performance, and evidence.
+- **Inputs:** CareerTwin state, active target career
+- **Outputs:** unified state, insights, conflicts, readiness level
+- **Tools it may use:** get_careertwin_state, calculate_career_readiness,
+  get_careertwin_insights, get_careertwin_conflicts,
+  get_stale_derived_state, refresh_careertwin_state
+- **What it should NOT do:** calculate scores, determine conflicts, assign
+  readiness, manage state transitions
+- **When invoked:** when the user views the CareerTwin unified state
+- **Deterministic responsibilities:** state aggregation, career fit, readiness,
+  insights, conflicts, stale-state detection, refresh planning
+- **LLM responsibilities:** narrative explanation, personalized summaries
+
 ## Invocation rules
 - Agents are tools, not the whole application.
 - Do not add a chatbot just for demonstration.

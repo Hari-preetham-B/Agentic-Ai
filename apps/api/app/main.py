@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.routes import (
     agent_runs_router,
     careers_router,
+    careertwin_router,
     evidence_router,
     health,
     interviews_router,
@@ -34,6 +35,7 @@ app.include_router(profiles_router)
 app.include_router(resume_router)
 app.include_router(agent_runs_router)
 app.include_router(careers_router)
+app.include_router(careertwin_router)
 app.include_router(evidence_router)
 app.include_router(interviews_router)
 app.include_router(learning_router)

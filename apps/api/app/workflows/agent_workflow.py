@@ -80,6 +80,7 @@ class AgentWorkflow:
             CareerAgent,
             SkillGapAgent,
         )
+        from app.agents.careertwin_agents import CareerTwinAgent
         from app.agents.evidence_agents import EvidenceAgent
         from app.agents.interview_agents import InterviewAgent
         from app.agents.learning_agents import LearningAgent
@@ -91,6 +92,7 @@ class AgentWorkflow:
             "learning_agent": LearningAgent(),
             "interview_agent": InterviewAgent(),
             "evidence_agent": EvidenceAgent(),
+            "careertwin_agent": CareerTwinAgent(),
         }
 
         agent_name = state.current_agent or "profile_agent"

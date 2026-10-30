@@ -223,6 +223,47 @@ Roadmaps are persisted and can be regenerated when profile changes.
 LLMs may explain rationale but never determine gaps, prerequisites,
 resource ranking, or sequencing.
 
+## Unified CareerTwin intelligence (Phase 8)
+CareerTwin intelligence unifies all systems into a single derived state.
+The pipeline is:
+
+```
+User-confirmed profile
+  + Uploaded evidence
+  + Career requirements
+  + Skill-gap analysis
+  + Learning progress
+  + Interview performance
+        ↓
+   CareerTwin State (CareerTwinStateService)
+        ↓
+Cross-system intelligence (CareerInsightService)
+        ↓
+Career recommendations, Learning priorities, Interview priorities,
+Career readiness, Evidence-aware explanations
+        ↓
+Updated derived CareerTwin state
+```
+
+Source-of-truth hierarchy:
+1. User-confirmed profile data
+2. User-confirmed edits
+3. Uploaded/documented information
+4. Deterministic derived calculations
+5. Evidence-backed external information
+6. Interview performance signals
+7. Agent inference
+
+State classification: CONFIRMED, DOCUMENTED, DERIVED, EVIDENCE_BACKED,
+PERFORMANCE_SIGNAL, INFERRED.
+
+Readiness levels: NOT_READY, EARLY, DEVELOPING, COMPETITIVE, STRONG.
+
+Conflict detection identifies performance gaps, goal conflicts, and stale state.
+Reconciliation determines which derived systems need regeneration.
+LLMs may generate narrative/explanations but never calculate scores,
+insights, conflicts, or state.
+
 ## Adaptive interview intelligence (Phase 7)
 Adaptive interview intelligence provides structured interview sessions with
 deterministic question selection, difficulty progression, and skill performance

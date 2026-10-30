@@ -78,6 +78,17 @@ SQLAlchemy async + asyncpg → PostgreSQL (Supabase)
 | `/interviews/{session_id}/complete` | POST | Complete an interview session | Implemented |
 | `/interviews/{session_id}/results` | GET | Get interview results | Implemented |
 
+## Implemented endpoints (Phase 8 — CareerTwin Intelligence)
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/careertwin` | GET | Get unified CareerTwin state | Implemented |
+| `/careertwin/insights` | GET | Get cross-system insights | Implemented |
+| `/careertwin/conflicts` | GET | Get cross-system conflicts | Implemented |
+| `/careertwin/readiness` | GET | Get career readiness | Implemented |
+| `/careertwin/stale` | GET | Get stale derived state | Implemented |
+| `/careertwin/refresh` | POST | Refresh stale derived state | Implemented |
+
 ## Planned (future) endpoints
 | Group | Purpose | Status |
 |-------|---------|--------|

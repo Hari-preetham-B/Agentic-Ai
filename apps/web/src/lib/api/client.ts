@@ -677,6 +677,208 @@ export async function getClaimEvidence(
 }
 
 // ---------------------------------------------------------------------------
+// CareerTwin unified intelligence
+// ---------------------------------------------------------------------------
+
+export interface CareerTwinSkill {
+  name: string;
+  category: string | null;
+  proficiency: string | null;
+  source: string;
+  years_experience: number | null;
+}
+
+export interface CareerTwinCareerFit {
+  career_id: string;
+  career_title: string;
+  fit_score: number;
+  readiness_level: string;
+  strongest_areas: string[];
+  weakest_areas: string[];
+  blockers: string[];
+  rationale: string;
+}
+
+export interface CareerTwinSkillGap {
+  skill_name: string;
+  importance: string;
+  current_level: string | null;
+  required_level: string | null;
+  status: string;
+  priority: string | null;
+}
+
+export interface CareerTwinRoadmapSummary {
+  roadmap_id: string | null;
+  total_skills: number;
+  p0_count: number;
+  p1_count: number;
+  p2_count: number;
+  total_estimated_hours: number;
+  status: string;
+  generated_at: string | null;
+  stale: boolean;
+}
+
+export interface CareerTwinInterviewSummary {
+  sessions_count: number;
+  latest_overall_score: number | null;
+  skill_performance: Record<string, unknown>[];
+  strengths: string[];
+  weaknesses: string[];
+  recommended_skills: string[];
+  last_interview_at: string | null;
+}
+
+export interface CareerTwinEvidenceSummary {
+  total_claims: number;
+  supported_count: number;
+  inferred_count: number;
+  uncertain_count: number;
+  contradicted_count: number;
+  last_verified_at: string | null;
+}
+
+export interface CareerTwinInsight {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  reason: string;
+  affected_entity: string | null;
+  affected_skill: string | null;
+  affected_career: string | null;
+  source_signals: string[];
+  recommended_action: string | null;
+  classification: string;
+}
+
+export interface CareerTwinConflict {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  description: string;
+  affected_entity: string | null;
+  affected_skill: string | null;
+  source_a: string | null;
+  source_b: string | null;
+  resolution: string | null;
+}
+
+export interface CareerTwinStaleState {
+  component: string;
+  generated_at: string | null;
+  source_updated_at: string | null;
+  is_stale: boolean;
+  reason: string | null;
+}
+
+export interface CareerTwinState {
+  profile_id: string;
+  profile_name: string | null;
+  profile_status: string;
+  headline: string | null;
+  education: Record<string, unknown>[];
+  experience: Record<string, unknown>[];
+  projects: Record<string, unknown>[];
+  confirmed_skills: CareerTwinSkill[];
+  documented_skills: CareerTwinSkill[];
+  target_careers: string[];
+  active_target_career: string | null;
+  career_fit: CareerTwinCareerFit | null;
+  skill_gaps: CareerTwinSkillGap[];
+  roadmap_summary: CareerTwinRoadmapSummary;
+  interview_summary: CareerTwinInterviewSummary;
+  evidence_summary: CareerTwinEvidenceSummary;
+  insights: CareerTwinInsight[];
+  conflicts: CareerTwinConflict[];
+  stale_components: CareerTwinStaleState[];
+  readiness_level: string;
+  readiness_score: number;
+  last_updated_at: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export async function getCareerTwinState(
+  profileId: string,
+  activeTargetCareer?: string,
+): Promise<CareerTwinState> {
+  const params = new URLSearchParams({ profile_id: profileId });
+  if (activeTargetCareer) params.set("active_target_career", activeTargetCareer);
+  return request<CareerTwinState>(`${API_BASE}/careertwin?${params.toString()}`);
+}
+
+export async function getCareerTwinInsights(
+  profileId: string,
+  activeTargetCareer?: string,
+): Promise<CareerTwinInsight[]> {
+  const params = new URLSearchParams({ profile_id: profileId });
+  if (activeTargetCareer) params.set("active_target_career", activeTargetCareer);
+  const { insights } = await request<{ insights: CareerTwinInsight[] }>(
+    `${API_BASE}/careertwin/insights?${params.toString()}`,
+  );
+  return insights;
+}
+
+export async function getCareerTwinConflicts(
+  profileId: string,
+  activeTargetCareer?: string,
+): Promise<CareerTwinConflict[]> {
+  const params = new URLSearchParams({ profile_id: profileId });
+  if (activeTargetCareer) params.set("active_target_career", activeTargetCareer);
+  const { conflicts } = await request<{ conflicts: CareerTwinConflict[] }>(
+    `${API_BASE}/careertwin/conflicts?${params.toString()}`,
+  );
+  return conflicts;
+}
+
+export async function getCareerTwinReadiness(
+  profileId: string,
+  careerSlug: string,
+): Promise<{
+  readiness_level: string;
+  readiness_score: number;
+  rationale: string;
+  blockers: string[];
+}> {
+  const params = new URLSearchParams({
+    profile_id: profileId,
+    career_slug: careerSlug,
+  });
+  return request<{
+    readiness_level: string;
+    readiness_score: number;
+    rationale: string;
+    blockers: string[];
+  }>(`${API_BASE}/careertwin/readiness?${params.toString()}`);
+}
+
+export async function getCareerTwinStale(
+  profileId: string,
+  activeTargetCareer?: string,
+): Promise<CareerTwinStaleState[]> {
+  const params = new URLSearchParams({ profile_id: profileId });
+  if (activeTargetCareer) params.set("active_target_career", activeTargetCareer);
+  const { stale_components } = await request<{ stale_components: CareerTwinStaleState[] }>(
+    `${API_BASE}/careertwin/stale?${params.toString()}`,
+  );
+  return stale_components;
+}
+
+export async function refreshCareerTwin(
+  profileId: string,
+): Promise<{ refreshed_components: string[]; unchanged_components: string[]; message: string }> {
+  return request<{ refreshed_components: string[]; unchanged_components: string[]; message: string }>(
+    `${API_BASE}/careertwin/refresh`,
+    {
+      method: "POST",
+      body: JSON.stringify({ profile_id: profileId, force: false }),
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Agent runs
 // ---------------------------------------------------------------------------
 
