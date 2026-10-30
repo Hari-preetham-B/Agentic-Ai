@@ -7,6 +7,7 @@ from app.api.routes import (
     careers_router,
     evidence_router,
     health,
+    interviews_router,
     learning_router,
     profiles_router,
     resume_router,
@@ -34,6 +35,7 @@ app.include_router(resume_router)
 app.include_router(agent_runs_router)
 app.include_router(careers_router)
 app.include_router(evidence_router)
+app.include_router(interviews_router)
 app.include_router(learning_router)
 
 

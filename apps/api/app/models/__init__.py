@@ -14,6 +14,14 @@ from app.models.evidence import (  # noqa: F401
     EvidenceDocument,
     EvidenceSource,
 )
+from app.models.interview import (  # noqa: F401
+    InterviewEvaluation,
+    InterviewQuestion,
+    InterviewQuestionSkill,
+    InterviewSession,
+    InterviewSkillResult,
+    InterviewTurn,
+)
 from app.models.learning import (  # noqa: F401
     LearningResource,
     LearningResourceSkill,
@@ -52,6 +60,12 @@ __all__ = [
     "EvidenceChunk",
     "Claim",
     "ClaimEvidence",
+    "InterviewEvaluation",
+    "InterviewQuestion",
+    "InterviewQuestionSkill",
+    "InterviewSession",
+    "InterviewSkillResult",
+    "InterviewTurn",
     "LearningResource",
     "LearningResourceSkill",
     "Roadmap",

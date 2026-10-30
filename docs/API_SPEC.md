@@ -66,6 +66,18 @@ SQLAlchemy async + asyncpg → PostgreSQL (Supabase)
 | `/learning/roadmaps/{roadmap_id}` | GET | Get a roadmap by ID | Implemented |
 | `/learning/roadmaps/{roadmap_id}/regenerate` | POST | Regenerate a roadmap | Implemented |
 
+## Implemented endpoints (Phase 7 — Adaptive Interview)
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/interviews` | POST | Create an interview session | Implemented |
+| `/interviews/{session_id}` | GET | Get interview session state | Implemented |
+| `/interviews/{session_id}/start` | POST | Start an interview session | Implemented |
+| `/interviews/{session_id}/pause` | POST | Pause an interview session | Implemented |
+| `/interviews/{session_id}/resume` | POST | Resume a paused session | Implemented |
+| `/interviews/{session_id}/complete` | POST | Complete an interview session | Implemented |
+| `/interviews/{session_id}/results` | GET | Get interview results | Implemented |
+
 ## Planned (future) endpoints
 | Group | Purpose | Status |
 |-------|---------|--------|

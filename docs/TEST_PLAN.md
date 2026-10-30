@@ -78,5 +78,5 @@ engine, sequencing engine, and resource matcher are designed for deterministic
 testing.
 
 ## Status
-Phase 6 tests implemented. All backend tests passing (106 total). Frontend
-typecheck, lint, and production build pass. New routes: `/app/roadmap`, `/app/trust`.
+Phase 7 tests implemented. All backend tests passing (106 total). Frontend
+typecheck, lint, and production build pass. New routes: `/app/interview`, `/app/roadmap`, `/app/trust`.

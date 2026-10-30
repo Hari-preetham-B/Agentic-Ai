@@ -102,6 +102,12 @@ export default function CareersPage() {
           >
             Build roadmap →
           </Link>
+          <Link
+            href={`/app/interview`}
+            className="inline-flex items-center gap-2 rounded-sm border border-border-soft bg-panel px-3 py-1 font-mono text-xs text-muted hover:bg-panel-hover"
+          >
+            Start interview →
+          </Link>
         </div>
         <PageHeader
           title={detailCareer.title}

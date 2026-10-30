@@ -50,5 +50,4 @@ class InterviewAgent(_StubAgent):
 
 __all__ = [
     "LearningAgent",
-    "InterviewAgent",
 ]

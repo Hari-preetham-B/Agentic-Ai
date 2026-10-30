@@ -36,6 +36,14 @@ from app.tools.learning_tools import (
     build_get_roadmap_tool,
     build_get_skill_dependencies_tool,
 )
+from app.tools.interview_tools import (
+    build_create_interview_session_tool,
+    build_evaluate_interview_answer_tool,
+    build_get_interview_results_tool,
+    build_get_interview_session_tool,
+    build_get_next_interview_question_tool,
+    build_submit_interview_answer_tool,
+)
 from app.tools.profile_tool import build_get_profile_tool
 from app.workflows.agent_workflow import AgentWorkflow
 
@@ -141,6 +149,15 @@ class AgentOrchestrator:
             tool_registry.register(build_generate_learning_roadmap_tool(self.session))
             tool_registry.register(build_get_roadmap_tool(self.session))
 
+        # Register interview tools for interview capability.
+        if self.session is not None and capability == "interview":
+            tool_registry.register(build_create_interview_session_tool(self.session))
+            tool_registry.register(build_get_interview_session_tool(self.session))
+            tool_registry.register(build_get_next_interview_question_tool(self.session))
+            tool_registry.register(build_submit_interview_answer_tool(self.session))
+            tool_registry.register(build_evaluate_interview_answer_tool(self.session))
+            tool_registry.register(build_get_interview_results_tool(self.session))
+
         # Create the run and record RUN_STARTED and AGENT_STARTED.
         run = await self.trace.start_run(
             request_id=request_id,
@@ -174,6 +191,9 @@ class AgentOrchestrator:
                 context["profile_id"] = profile_id
                 context["career_slug"] = user_input
                 context["profile_skills"] = []
+            elif capability == "interview":
+                context["profile_id"] = profile_id
+                context["capability"] = user_input or "create_session" 
 
             final_state = await self.workflow.run(
                 current_agent=agent_name,

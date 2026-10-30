@@ -72,6 +72,22 @@ to the specific task should run.
 - **What it should NOT do:** build profiles, recommend careers, run interviews
 - **When invoked:** when information needs to be verified before being trusted
 
+### 7. Interview Agent (Phase 7 — implemented)
+- **Purpose:** Orchestrate adaptive interview sessions with deterministic
+  question selection, difficulty progression, and skill performance tracking.
+- **Inputs:** CareerTwin profile, target career, interview mode, difficulty
+- **Outputs:** interview session, next question, evaluation results, skill
+  performance summary, interview summary
+- **Tools it may use:** create_interview_session, get_interview_session,
+  get_next_interview_question, submit_interview_answer,
+  evaluate_interview_answer, get_interview_results
+- **What it should NOT do:** build profiles, recommend careers, verify evidence
+- **When invoked:** when the user enters interview preparation for a role
+- **Deterministic responsibilities:** session state, question selection,
+  difficulty progression, scoring aggregation, completion, skill performance
+- **LLM responsibilities:** question wording, qualitative evaluation, feedback
+  generation
+
 ## Invocation rules
 - Agents are tools, not the whole application.
 - Do not add a chatbot just for demonstration.

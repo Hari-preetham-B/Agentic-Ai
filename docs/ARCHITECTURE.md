@@ -223,6 +223,31 @@ Roadmaps are persisted and can be regenerated when profile changes.
 LLMs may explain rationale but never determine gaps, prerequisites,
 resource ranking, or sequencing.
 
+## Adaptive interview intelligence (Phase 7)
+Adaptive interview intelligence provides structured interview sessions with
+deterministic question selection, difficulty progression, and skill performance
+tracking. The pipeline is:
+
+```
+CareerTwin Profile
+  → Target Career
+  → Career Requirements
+  → Interview Blueprint
+  → Adaptive Question Selection (AdaptiveQuestionSelector)
+  → Student Answer
+  → Evaluation (InterviewEvaluationService)
+  → Skill/Competency Update (InterviewSkillPerformanceService)
+  → Next Question Selection
+  → Interview Summary (InterviewCompletionService)
+  → Improvement Recommendations
+```
+
+Session state machine: CREATED → ACTIVE → PAUSED/COMPLETED/ABANDONED.
+Difficulty adapts based on rolling performance window (increase at ≥0.80,
+decrease at ≤0.45, maintain otherwise).
+LLMs handle question wording and answer evaluation but never control
+session state, question selection, difficulty, or completion.
+
 Embeddings are abstracted behind `EmbeddingProvider` (similar to `LLMProvider`).
 A `FakeEmbeddingProvider` is provided for tests. pgvector's `<=>` operator
 is used for native cosine-distance search in production (PostgreSQL). SQLite

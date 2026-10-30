@@ -14,9 +14,7 @@ from app.agents.career_agents import (  # noqa: F401
 from app.agents.evidence_agents import EvidenceAgent  # noqa: F401
 from app.agents.learning_agents import LearningAgent  # noqa: F401
 from app.agents.profile_agent import ProfileAgent  # noqa: F401
-from app.agents.stubs import (  # noqa: F401
-    InterviewAgent,
-)
+from app.agents.interview_agents import InterviewAgent  # noqa: F401
 
 __all__ = [
     "AgentProtocol",
