@@ -7,6 +7,13 @@ from app.models.career import (  # noqa: F401
     CareerSource,
     CareerTool,
 )
+from app.models.evidence import (  # noqa: F401
+    Claim,
+    ClaimEvidence,
+    EvidenceChunk,
+    EvidenceDocument,
+    EvidenceSource,
+)
 from app.models.profile import (  # noqa: F401
     AgentEvent,
     AgentRun,
@@ -32,4 +39,9 @@ __all__ = [
     "CareerTool",
     "CareerProject",
     "CareerSource",
+    "EvidenceSource",
+    "EvidenceDocument",
+    "EvidenceChunk",
+    "Claim",
+    "ClaimEvidence",
 ]

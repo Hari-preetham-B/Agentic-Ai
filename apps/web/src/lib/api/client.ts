@@ -576,6 +576,107 @@ export async function getCareerRecommendations(
 }
 
 // ---------------------------------------------------------------------------
+// Evidence API functions
+// ---------------------------------------------------------------------------
+
+export interface EvidenceSearchRequest {
+  query: string;
+  top_k?: number;
+  min_similarity?: number;
+  source_type?: string;
+}
+
+export interface EvidenceSearchResponse {
+  results: EvidenceSearchResult[];
+}
+
+export interface EvidenceSearchResult {
+  chunk_id: string;
+  document_id: string;
+  source_id: string;
+  source_type: string;
+  title: string;
+  publisher: string;
+  url: string | null;
+  similarity_score: number;
+  content: string;
+  chunk_index: number;
+}
+
+export interface ClaimVerifyRequest {
+  claim_text: string;
+  claim_type?: string;
+  importance?: string;
+  profile_id?: string;
+  context?: string;
+}
+
+export interface ClaimVerifyResponse {
+  claim: string;
+  claim_type: string;
+  importance: string;
+  status: string;
+  confidence: number;
+  evidence: EvidenceSearchResult[];
+  contradictions: EvidenceSearchResult[];
+  explanation: string;
+  factors: Record<string, unknown>;
+}
+
+export interface ClaimResponse {
+  id: string;
+  profile_id: string | null;
+  claim_text: string;
+  claim_type: string;
+  status: string;
+  confidence_score: number | null;
+  created_at: string;
+}
+
+export interface EvidenceClaimLink {
+  evidence_chunk_id: string;
+  relationship: string;
+  support_score: number | null;
+  contradiction_score: number | null;
+}
+
+export async function searchEvidence(
+  payload: EvidenceSearchRequest,
+): Promise<EvidenceSearchResult[]> {
+  const { results } = await request<EvidenceSearchResponse>(
+    `${API_BASE}/evidence/search`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return results;
+}
+
+export async function verifyClaim(
+  payload: ClaimVerifyRequest,
+): Promise<ClaimVerifyResponse> {
+  return request<ClaimVerifyResponse>(`${API_BASE}/claims/verify`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getClaim(claimId: string): Promise<ClaimResponse> {
+  return request<ClaimResponse>(
+    `${API_BASE}/claims/${encodeURIComponent(claimId)}`
+  );
+}
+
+export async function getClaimEvidence(
+  claimId: string,
+): Promise<EvidenceClaimLink[]> {
+  return request<EvidenceClaimLink[]>(
+    `${API_BASE}/claims/${encodeURIComponent(claimId)}/evidence`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Agent runs
 // ---------------------------------------------------------------------------
 

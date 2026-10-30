@@ -161,3 +161,21 @@ from app.tools.career_tools import (  # noqa: E402,F401
     GetCareerRecommendationsOutput,
     GetCareerRecommendationsTool,
 )
+from app.tools.evidence_tools import (  # noqa: E402,F401
+    GetEvidenceInput,
+    GetEvidenceOutput,
+    GetEvidenceTool,
+    SearchEvidenceInput,
+    SearchEvidenceOutput,
+    SearchEvidenceTool,
+    VerifyClaimInput,
+    VerifyClaimOutput,
+    VerifyClaimTool,
+    GetClaimEvidenceInput,
+    GetClaimEvidenceOutput,
+    GetClaimEvidenceTool,
+    build_get_evidence_tool,
+    build_search_evidence_tool,
+    build_verify_claim_tool,
+    build_get_claim_evidence_tool,
+)

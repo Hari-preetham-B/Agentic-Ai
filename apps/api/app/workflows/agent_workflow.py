@@ -80,8 +80,8 @@ class AgentWorkflow:
             CareerAgent,
             SkillGapAgent,
         )
+        from app.agents.evidence_agents import EvidenceAgent
         from app.agents.stubs import (
-            EvidenceAgent,
             InterviewAgent,
             LearningAgent,
         )

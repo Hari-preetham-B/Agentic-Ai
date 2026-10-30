@@ -1,8 +1,8 @@
 """Deterministic stubs for agents not yet implemented.
 
-Learning, Interview, and Evidence agents remain as contract stubs in this
-phase. Career and Skill Gap agents have real implementations in
-career_agents.py.
+Learning and Interview agents remain as contract stubs in this phase.
+Career, Skill Gap, and Evidence agents have real implementations in
+career_agents.py and evidence_agents.py.
 """
 
 from __future__ import annotations
@@ -56,16 +56,7 @@ class InterviewAgent(_StubAgent):
         super().__init__(self.name, "interview")
 
 
-class EvidenceAgent(_StubAgent):
-    """Evidence Agent — future: claim/evidence verification."""
-    name = "evidence_agent"
-
-    def __init__(self) -> None:
-        super().__init__(self.name, "evidence_check")
-
-
 __all__ = [
     "LearningAgent",
     "InterviewAgent",
-    "EvidenceAgent",
 ]

@@ -46,16 +46,27 @@ SQLAlchemy async + asyncpg → PostgreSQL (Supabase)
 | `/profiles/extract-resume` | POST | Upload resume, return extracted text | Implemented |
 | `/profiles/extract-resume/draft` | POST | Upload resume, return structured ProfileDraft | Implemented |
 
+## Implemented endpoints (Phase 5 — Evidence Intelligence)
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/evidence/search` | POST | Search evidence chunks by semantic similarity | Implemented |
+| `/claims/verify` | POST | Verify a claim against stored evidence | Implemented |
+| `/claims/{claim_id}` | GET | Get a verified claim by ID | Implemented |
+| `/claims/{claim_id}/evidence` | GET | Get evidence linked to a claim | Implemented |
+| `/evidence/ingest` | POST | Ingest an evidence document (idempotent) | Implemented |
+
 ## Planned (future) endpoints
 | Group | Purpose | Status |
 |-------|---------|--------|
 | `/auth` | Authentication (Supabase Auth + FastAPI validation) | Not implemented |
-| `/careers` | Career path analysis | Not implemented |
-| `/skills` | Skill intelligence and gaps | Not implemented |
+| `/careers` | Career path analysis | Implemented (Phase 4) |
+| `/skills` | Skill intelligence and gaps | Implemented (Phase 4) |
 | `/roadmap` | Learning roadmaps | Not implemented |
 | `/interview` | Interview lab sessions | Not implemented |
-| `/evidence` | Evidence sources and claims | Not implemented |
-| `/agent-runs` | Agent execution traces | Not implemented |
+| `/evidence` | Evidence search and ingestion | Implemented (Phase 5) |
+| `/claims` | Claim verification and retrieval | Implemented (Phase 5) |
+| `/agent-runs` | Agent execution traces | Implemented (Phase 3) |
 
 ## Health check (implemented)
 ```json

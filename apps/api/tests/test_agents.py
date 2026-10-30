@@ -100,9 +100,9 @@ async def test_profile_agent_executes_and_produces_typed_result(
 
 @pytest.mark.asyncio
 async def test_agent_stubs_complete_without_fabrication() -> None:
-    from app.agents import EvidenceAgent, InterviewAgent, LearningAgent
+    from app.agents import InterviewAgent, LearningAgent
 
-    for agent_cls in (LearningAgent, InterviewAgent, EvidenceAgent):
+    for agent_cls in (LearningAgent, InterviewAgent):
         agent = agent_cls()
         state = AgentState(
             profile_id="00000000-0000-0000-0000-000000000000",

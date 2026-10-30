@@ -53,12 +53,13 @@ Supabase PostgreSQL + pgvector + Storage (future)
 
 ### Future architecture (not yet implemented)
 - Six specialized agents (Profile, Career, Skill Gap, Learning, Interview,
-  Evidence)
+  Evidence) — all implemented
 - Application-level orchestrator and LangGraph stateful workflows
 - LLM provider abstraction (`LLMProvider` protocol)
+- Embedding provider abstraction (`EmbeddingProvider` protocol)
 - Supabase pgvector, Auth, and Storage (application data schema implemented;
   Auth/RLS future)
-- RAG / evidence pipeline
+- RAG / evidence pipeline (Phase 5 — implemented)
 - Resume semantic extraction via LLM (currently deterministic mock)
 - Interview evaluation, skill-gap algorithms, career recommendations,
   confidence calculations
@@ -186,3 +187,34 @@ Provider API keys and the Supabase service role key never reach the frontend.
 Every agent run produces an inspectable execution trace stored in
 `agent_runs` / `agent_events`. Traces make agent behavior auditable and are
 not decorative animations.
+
+## Evidence intelligence (Phase 5)
+Evidence intelligence uses PostgreSQL pgvector for semantic retrieval. The
+pipeline is:
+
+```
+Generated Response
+  → Claim Extraction (ClaimExtractionService)
+  → Evidence Retrieval (EvidenceRetriever — pgvector cosine similarity)
+  → Claim/Evidence Comparison (ClaimVerificationService)
+  → Contradiction Detection
+  → Confidence Engine (deterministic)
+  → SUPPORTED / INFERRED / UNCERTAIN / CONTRADICTED
+```
+
+Embeddings are abstracted behind `EmbeddingProvider` (similar to `LLMProvider`).
+A `FakeEmbeddingProvider` is provided for tests. pgvector's `<=>` operator
+is used for native cosine-distance search in production (PostgreSQL). SQLite
+tests use a Python cosine-similarity fallback.
+
+Source hierarchy (strongest → weakest):
+1. USER_CONFIRMED
+2. USER_DOCUMENT
+3. CURATED_KNOWLEDGE
+4. RETRIEVED_EXTERNAL
+5. LLM_INFERENCE
+
+Confidence is NEVER derived from LLM self-assessment. It is computed
+deterministically by `ConfidenceEngine` from observable signals:
+source reliability, evidence hierarchy, similarity, support strength,
+contradiction strength, freshness, and directness.

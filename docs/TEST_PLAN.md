@@ -51,6 +51,23 @@ npx tsc --noEmit
 npm run build
 ```
 
+## Tests implemented (Phase 5 — Evidence Intelligence)
+
+Backend (`apps/api/tests/`):
+
+| Test | Covers |
+|------|--------|
+| `test_evidence_models.py` | Evidence source/document/chunk/claim CRUD, claim-evidence links, constraints |
+| `test_embedding_provider.py` | Fake embedding determinism, different inputs, batch, properties |
+| `test_confidence_engine.py` | Deterministic scoring, SUPPORTED/CONTRADICTED/UNCERTAIN classification, reproducibility, source weights |
+| `test_claim_extraction.py` | Deterministic extraction, context, empty text, short text |
+| `test_claim_verification.py` | Claim verification pipeline, persistence |
+| `test_evidence_agent.py` | Evidence Agent full run, empty input handling |
+| `test_evidence_tools.py` | Tool registration, execution, validation |
+| `test_evidence_api.py` | API endpoint availability |
+| `test_evidence_ingestion.py` | Checksum dedup, chunking, metadata |
+| `test_evidence_retriever.py` | Semantic search, min_similarity, get_chunk |
+
 ## Status
-Phase 2 tests implemented and passing (24 backend tests). Future phases add
-the full testing strategy above.
+Phase 5 tests implemented. All backend tests passing (106 total). Frontend
+typecheck, lint, and production build pass.

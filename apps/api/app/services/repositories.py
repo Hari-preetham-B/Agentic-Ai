@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Any, Sequence
 from uuid import UUID
 
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,6 +21,13 @@ from app.models.career import (
     CareerSkill,
     CareerSource,
     CareerTool,
+)
+from app.models.evidence import (
+    Claim,
+    ClaimEvidence,
+    EvidenceChunk,
+    EvidenceDocument,
+    EvidenceSource,
 )
 from app.models.profile import AgentEvent, AgentRun, Profile
 
@@ -175,4 +184,150 @@ __all__ = [
     "AgentRunRepository",
     "AgentEventRepository",
     "CareerRepository",
+    "EvidenceRepository",
 ]
+
+
+class EvidenceRepository:
+    """Repository for evidence intelligence persistence."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    # ------------------------------------------------------------------
+    # Evidence sources
+    # ------------------------------------------------------------------
+
+    async def create_source(self, source: EvidenceSource) -> EvidenceSource:
+        self.session.add(source)
+        await self.session.commit()
+        await self.session.refresh(source)
+        return source
+
+    async def get_source(self, source_id: uuid.UUID) -> EvidenceSource | None:
+        result = await self.session.execute(
+            select(EvidenceSource).where(EvidenceSource.id == source_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_sources(
+        self, source_type: str | None = None
+    ) -> Sequence[EvidenceSource]:
+        stmt = select(EvidenceSource)
+        if source_type:
+            stmt = stmt.where(EvidenceSource.source_type == source_type)
+        result = await self.session.execute(stmt.order_by(EvidenceSource.title))
+        return result.scalars().all()
+
+    # ------------------------------------------------------------------
+    # Evidence documents
+    # ------------------------------------------------------------------
+
+    async def create_document(
+        self, document: EvidenceDocument
+    ) -> EvidenceDocument:
+        self.session.add(document)
+        await self.session.commit()
+        await self.session.refresh(document)
+        return document
+
+    async def get_document(
+        self, document_id: uuid.UUID
+    ) -> EvidenceDocument | None:
+        result = await self.session.execute(
+            select(EvidenceDocument).where(EvidenceDocument.id == document_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_document_by_checksum(
+        self, checksum: str
+    ) -> EvidenceDocument | None:
+        result = await self.session.execute(
+            select(EvidenceDocument).where(EvidenceDocument.checksum == checksum)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_documents_by_source(
+        self, source_id: uuid.UUID
+    ) -> Sequence[EvidenceDocument]:
+        result = await self.session.execute(
+            select(EvidenceDocument)
+            .where(EvidenceDocument.source_id == source_id)
+            .order_by(EvidenceDocument.created_at.desc())
+        )
+        return result.scalars().all()
+
+    # ------------------------------------------------------------------
+    # Evidence chunks
+    # ------------------------------------------------------------------
+
+    async def create_chunk(self, chunk: EvidenceChunk) -> EvidenceChunk:
+        self.session.add(chunk)
+        await self.session.commit()
+        await self.session.refresh(chunk)
+        return chunk
+
+    async def get_chunk(self, chunk_id: uuid.UUID) -> EvidenceChunk | None:
+        result = await self.session.execute(
+            select(EvidenceChunk).where(EvidenceChunk.id == chunk_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_chunks_by_document(
+        self, document_id: uuid.UUID
+    ) -> Sequence[EvidenceChunk]:
+        result = await self.session.execute(
+            select(EvidenceChunk)
+            .where(EvidenceChunk.document_id == document_id)
+            .order_by(EvidenceChunk.chunk_index.asc())
+        )
+        return result.scalars().all()
+
+    # ------------------------------------------------------------------
+    # Claims
+    # ------------------------------------------------------------------
+
+    async def create_claim(self, claim: Claim) -> Claim:
+        self.session.add(claim)
+        await self.session.commit()
+        await self.session.refresh(claim)
+        return claim
+
+    async def get_claim(self, claim_id: uuid.UUID) -> Claim | None:
+        result = await self.session.execute(
+            select(Claim).where(Claim.id == claim_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_claims_by_profile(
+        self, profile_id: uuid.UUID, limit: int = 50
+    ) -> Sequence[Claim]:
+        result = await self.session.execute(
+            select(Claim)
+            .where(Claim.profile_id == profile_id)
+            .order_by(Claim.created_at.desc())
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    # ------------------------------------------------------------------
+    # Claim evidence links
+    # ------------------------------------------------------------------
+
+    async def link_claim_evidence(
+        self, link: ClaimEvidence
+    ) -> ClaimEvidence:
+        self.session.add(link)
+        await self.session.commit()
+        await self.session.refresh(link)
+        return link
+
+    async def get_claim_evidence(
+        self, claim_id: uuid.UUID
+    ) -> Sequence[ClaimEvidence]:
+        result = await self.session.execute(
+            select(ClaimEvidence)
+            .where(ClaimEvidence.claim_id == claim_id)
+            .order_by(ClaimEvidence.support_score.desc())
+        )
+        return result.scalars().all()
