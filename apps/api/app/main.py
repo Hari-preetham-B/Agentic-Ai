@@ -13,7 +13,11 @@ from app.api.routes import (
     profiles_router,
     resume_router,
 )
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import get_settings
 from app.core.database import dispose_engine
+from app.core.error_handling import register_error_handlers, StructuredErrorMiddleware
 from app.core.logging import configure_logging
 
 configure_logging()
@@ -29,6 +33,24 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+# CORS configuration
+settings = get_settings()
+allowed_origins = ["http://localhost:3000"]
+if settings.environment == "production":
+    allowed_origins = [o for o in allowed_origins if o]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Error handling
+app.add_middleware(StructuredErrorMiddleware)
+register_error_handlers(app)
 
 app.include_router(health.router)
 app.include_router(profiles_router)
