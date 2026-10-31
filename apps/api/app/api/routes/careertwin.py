@@ -167,13 +167,16 @@ async def refresh_careertwin(
     session: AsyncSession = Depends(get_session),
 ) -> CareerTwinRefreshResponse:
     service = CareerTwinReconciliationService(session)
-    # Determine trigger from request context.
     trigger = "manual"
-    plan = service.get_refresh_plan(trigger=trigger)
+    result = await service.execute_refresh(
+        profile_id=request.profile_id,
+        trigger=trigger,
+        active_target_career=None,
+    )
     return CareerTwinRefreshResponse(
-        refreshed_components=plan,
-        unchanged_components=[],
-        message=f"Refresh plan generated for trigger: {trigger}",
+        refreshed_components=result["refreshed_components"],
+        unchanged_components=result["unchanged_components"],
+        message=result["message"],
     )
 
 

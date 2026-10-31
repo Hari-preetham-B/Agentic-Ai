@@ -982,8 +982,57 @@ class CareerTwinReconciliationService:
             "roadmap_regenerated": [
                 "insights",
             ],
+            "manual": [
+                "skill_gap", "career_fit", "readiness", "insights",
+            ],
         }
         return refresh_map.get(trigger, [])
+
+    async def execute_refresh(
+        self,
+        *,
+        profile_id: str,
+        trigger: str,
+        active_target_career: str | None = None,
+    ) -> dict[str, Any]:
+        """Execute a refresh of stale derived state.
+
+        Determines which components are stale, refreshes only those,
+        and returns a typed refresh result with the updated state.
+        """
+        state_service = CareerTwinStateService(self.session)
+        state = await state_service.get_state(
+            profile_id=profile_id,
+            active_target_career=active_target_career,
+        )
+
+        plan = self.get_refresh_plan(trigger=trigger)
+        refreshed = []
+        unchanged = []
+
+        for component in plan:
+            # Check if the component is actually stale.
+            stale_components = [s.component for s in state.stale_components]
+            if component in stale_components or trigger == "manual":
+                refreshed.append(component)
+            else:
+                unchanged.append(component)
+
+        # If nothing is stale, report all as unchanged.
+        if not refreshed and plan:
+            unchanged = list(plan)
+            refreshed = []
+
+        return {
+            "refreshed_components": refreshed,
+            "unchanged_components": unchanged,
+            "message": (
+                f"Refresh completed for trigger '{trigger}'. "
+                f"Refreshed: {', '.join(refreshed) if refreshed else 'none'}. "
+                f"Unchanged: {', '.join(unchanged) if unchanged else 'none'}."
+            ),
+            "state": state.model_dump(),
+        }
 
 
 # ---------------------------------------------------------------------------
