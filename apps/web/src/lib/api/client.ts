@@ -14,6 +14,20 @@ const API_BASE =
     ? process.env.NEXT_PUBLIC_API_URL
     : "http://localhost:8000";
 
+// ---------------------------------------------------------------------------
+// Auth token management (in-memory, never persisted to localStorage)
+// ---------------------------------------------------------------------------
+
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return _authToken;
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -29,8 +43,15 @@ async function request<T>(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((init?.headers as Record<string, string>) || {}),
+  };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
   const res = await fetch(input, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers,
     ...init,
   });
 

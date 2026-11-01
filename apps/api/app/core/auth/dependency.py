@@ -36,8 +36,13 @@ def get_auth_provider() -> AuthProvider:
         if getattr(settings, "supabase_url", None) and getattr(
             settings, "supabase_service_role_key", None
         ):
-            # Real Supabase provider would go here.
-            _auth_provider = FakeAuthProvider()
+            from app.core.auth.supabase_provider import SupabaseAuthProvider
+
+            _auth_provider = SupabaseAuthProvider(
+                supabase_url=settings.supabase_url,
+                supabase_service_role_key=settings.supabase_service_role_key,
+                jwt_secret=getattr(settings, "supabase_jwt_secret", None),
+            )
         else:
             _auth_provider = FakeAuthProvider()
     return _auth_provider

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth/context";
 
 const navItems = [
   { label: "01 TWIN", href: "/app/twin" },
@@ -15,6 +16,7 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const { user, signOut, isConfigured } = useAuth();
 
   return (
     <nav
@@ -65,15 +67,33 @@ export function Navigation() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-border-soft">
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center gap-2 font-mono text-xs font-medium text-muted hover:text-foreground transition-colors"
-          >
-            PROFILE <span aria-hidden="true">↗</span>
-          </Link>
-          <p className="mt-2 text-mono-xs text-muted-soft max-w-[150px]">
-            Authentication connects in a later phase.
-          </p>
+          {user ? (
+            <>
+              <p className="text-mono-xs text-muted-soft mb-2 truncate">
+                {user.email}
+              </p>
+              <button
+                onClick={signOut}
+                className="inline-flex items-center gap-2 font-mono text-xs font-medium text-muted hover:text-foreground transition-colors"
+              >
+                SIGN OUT <span aria-hidden="true">↗</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center gap-2 font-mono text-xs font-medium text-muted hover:text-foreground transition-colors"
+              >
+                SIGN IN <span aria-hidden="true">↗</span>
+              </Link>
+              <p className="mt-2 text-mono-xs text-muted-soft max-w-[150px]">
+                {isConfigured
+                  ? "Authentication enabled."
+                  : "Auth not configured."}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </nav>
