@@ -18,7 +18,7 @@ class SupabaseAuthProvider:
     """Auth provider that validates Supabase JWT tokens.
 
     Uses the Supabase project's JWT secret to verify token signatures.
-    Activated when SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are configured.
+    Activated when SUPABASE_URL and SUPABASE_SECRET_KEY are configured.
     """
 
     provider_name = "supabase"
@@ -26,11 +26,11 @@ class SupabaseAuthProvider:
     def __init__(
         self,
         supabase_url: str,
-        supabase_service_role_key: str,
+        supabase_secret_key: str,
         jwt_secret: str | None = None,
     ) -> None:
         self.supabase_url = supabase_url
-        self.supabase_service_role_key = supabase_service_role_key
+        self.supabase_secret_key = supabase_secret_key
         self.jwt_secret = jwt_secret
 
     async def validate_token(self, token: str) -> AuthenticatedUser:

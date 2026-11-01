@@ -13,8 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application configuration.
 
-    Fields with defaults are development-safe. Secrets (Supabase service role
-    key, LLM API key, database URL) are intentionally optional and default to
+    Fields with defaults are development-safe. Secrets (Supabase secret key,
+    LLM API key, database URL) are intentionally optional and default to
     None so the application remains importable without them.
     """
 
@@ -25,11 +25,12 @@ class Settings(BaseSettings):
 
     # Supabase (server-side only)
     supabase_url: str | None = None
-    supabase_service_role_key: str | None = None
+    supabase_publishable_key: str | None = None
+    supabase_secret_key: str | None = None
     supabase_jwt_secret: str | None = None
 
     # Database (PostgreSQL via SQLAlchemy async + asyncpg)
-    # Example: postgresql+asyncpg://postgres:password@localhost:5432/careertwin
+    # Example: postgresql+asyncpg://postgres:password@db.supabase.co:5432/postgres
     database_url: str | None = None
 
     # LLM provider (server-side only). Provider choice is intentionally not locked.

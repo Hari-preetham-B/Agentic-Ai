@@ -23,6 +23,7 @@ venv/
 env/
 .env
 .env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
@@ -38,6 +39,8 @@ coverage.xml
 .env
 .env.*
 !.env.example
+!apps/web/.env.example
+!apps/api/.env.example
 
 # Build artifacts
 *.tsbuildinfo
