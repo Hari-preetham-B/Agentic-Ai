@@ -24,13 +24,29 @@ from app.workflows.agent_workflow import AgentWorkflow
 router = APIRouter(tags=["agent-runs"])
 
 
+def _create_orchestrator_llm_provider():
+    """Create an LLM provider for the orchestrator.
+
+    Uses the configured provider (e.g. Gemini) if available,
+    falls back to FakeLLMProvider for development/testing.
+    """
+    try:
+        from app.core.providers import create_llm_provider
+
+        return create_llm_provider()
+    except Exception:
+        from app.core.llm import FakeLLMProvider
+
+        return FakeLLMProvider()
+
+
 def get_orchestrator(
     session: AsyncSession = Depends(get_session),
 ) -> AgentOrchestrator:
     return AgentOrchestrator(
         session=session,
         trace_service=TraceService(session),
-        llm_provider=FakeLLMProvider(),
+        llm_provider=_create_orchestrator_llm_provider(),
         workflow=AgentWorkflow(),
     )
 
