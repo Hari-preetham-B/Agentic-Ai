@@ -229,8 +229,91 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_career_goals")),
     )
 
+    # Agent execution trace tables.
+    op.create_table(
+        "agent_runs",
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "profile_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=True,
+            index=True,
+        ),
+        sa.Column("request_id", sa.Text(), nullable=False, index=True),
+        sa.Column("capability", sa.Text(), nullable=False),
+        sa.Column(
+            "status",
+            sa.String(length=20),
+            nullable=False,
+            server_default="PENDING",
+        ),
+        sa.Column("provider", sa.Text(), nullable=True),
+        sa.Column("model", sa.Text(), nullable=True),
+        sa.Column("error", sa.Text(), nullable=True),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "completed_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.ForeignKeyConstraint(
+            ["profile_id"],
+            ["profiles.id"],
+            name=op.f("fk_agent_runs_profile_id_profiles"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_agent_runs")),
+    )
+
+    op.create_table(
+        "agent_events",
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "agent_run_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column("sequence", sa.Integer(), nullable=False),
+        sa.Column("event_type", sa.Text(), nullable=False),
+        sa.Column("agent_name", sa.Text(), nullable=True),
+        sa.Column("tool_name", sa.Text(), nullable=True),
+        sa.Column("message", sa.Text(), nullable=True),
+        sa.Column("payload", sa.JSON(), nullable=True),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "completed_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["agent_run_id"],
+            ["agent_runs.id"],
+            name=op.f("fk_agent_events_agent_run_id_agent_runs"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_agent_events")),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("agent_events")
+    op.drop_table("agent_runs")
     op.drop_table("career_goals")
     op.drop_table("experience")
     op.drop_table("projects")

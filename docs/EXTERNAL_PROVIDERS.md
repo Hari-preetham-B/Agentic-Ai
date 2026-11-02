@@ -86,97 +86,65 @@ Key points:
    - Where to obtain: Supabase Dashboard → Settings → Database → Connection string
    - Secret: Yes (NEVER expose to browser)
    - Used by: Backend (server) only
+   - Format: `postgresql+asyncpg://postgres:password@db.<ref>.supabase.co:5432/postgres`
+     (must use `+asyncpg` driver for SQLAlchemy async engine)
 
-### RLS Compatibility
+### Database Integration
 
-Supabase uses PostgreSQL with Row Level Security. The migration
-`0006_row_level_security` enables RLS on user-owned tables.
+The backend connects to Supabase PostgreSQL via SQLAlchemy 2.x async + asyncpg.
+Alembic manages schema migrations.
 
-## LLM
+**Required extensions:**
+- `pgvector` — for 384-dimensional embedding storage (created by migration `0003`)
 
-### Required credentials
+**Migration sequence:**
+1. `0001_initial_schema` — profiles, education, skills, projects, experience, career_goals, agent_runs, agent_events
+2. `0002_career_knowledge` — careers, career_skills, career_tools, career_projects, career_sources
+3. `0003_evidence_intelligence` — evidence_sources, evidence_documents, evidence_chunks, claims, claim_evidence (+ pgvector)
+4. `0004_learning_roadmap` — learning_resources, skill_dependencies, learning_resource_skills, roadmaps, roadmap_items, roadmap_resources
+5. `0005_adaptive_interview` — interview_sessions, interview_questions, interview_question_skills, interview_turns, interview_evaluations, interview_skill_results
+6. `0006_row_level_security` — RLS on 15 user-owned tables
 
-1. **Provider** (`LLM_PROVIDER`)
-   - Current: `gemini`
-   - Secret: No
-   - Used by: Backend (server) only
-
-2. **Model** (`LLM_MODEL`)
-   - Current: `gemini-3.8-flash`
-   - Secret: No
-   - Used by: Backend (server) only
-
-3. **API Key** (`LLM_API_KEY`)
-   - Where to obtain: Google AI Studio → API Keys
-   - Secret: Yes (NEVER expose to browser)
-   - Used by: Backend (server) only
-
-### Architecture
-
-Agents depend on the `LLMProvider` protocol, not vendor SDKs. The provider
-is selected via configuration and injected at runtime. `FakeLLMProvider`
-is used for tests and local development.
-
-## Embeddings
-
-### Required credentials
-
-1. **Provider** (`EMBEDDING_PROVIDER`)
-   - Current: `gemini`
-   - Secret: No
-   - Used by: Backend (server) only
-
-2. **Model** (`EMBEDDING_MODEL`)
-   - Current: `gemini-embedding-2`
-   - Secret: No
-   - Used by: Backend (server) only
-
-3. **API Key** (`EMBEDDING_API_KEY`)
-   - Where to obtain: Google AI Studio → API Keys
-   - Secret: Yes (NEVER expose to browser)
-   - Used by: Backend (server) only
-
-4. **Dimension** (`EMBEDDING_DIMENSION`)
-   - Current value: `384`
-   - The production embedding model MUST produce exactly 384 dimensions
-     unless the schema is intentionally changed via migration.
-   - Secret: No
-
-### Architecture
-
-Embeddings are abstracted behind `EmbeddingProvider`. The pgvector column
-uses `Vector(384)`. `FakeEmbeddingProvider` produces deterministic
-384-dimensional vectors for tests.
-
-## Real Provider Smoke Test
-
-To manually test the real Gemini providers:
-
+**Apply migrations:**
 ```bash
 cd apps/api
-python tests/test_gemini_smoke.py
+alembic upgrade head
 ```
 
-Or with pytest (not run by default):
+**Current Alembic head:** `0006_row_level_security`
 
-```bash
-cd apps/api
-pytest tests/test_gemini_smoke.py -v -s
-```
+### Row Level Security (RLS)
 
-The smoke test requires:
-- `LLM_PROVIDER=gemini` and `LLM_API_KEY` set in `.env`
-- `EMBEDDING_PROVIDER=gemini` and `EMBEDDING_API_KEY` set in `.env`
+Migration `0006_row_level_security` enables RLS on 15 user-owned tables:
+profiles, education, skills, projects, experience, career_goals, agent_runs,
+agent_events, claims, roadmaps, roadmap_items, roadmap_resources,
+interview_sessions, interview_turns, interview_skill_results.
 
-It will:
-1. Send a minimal prompt to Gemini
-2. Perform one structured-output request
-3. Generate one embedding
-4. Verify the embedding has exactly 384 dimensions
+Policies use `auth.uid()` (Supabase Auth) to enforce row ownership. RLS
+policies are enforced when connecting as a non-owner role (e.g. `authenticated`
+via the Supabase API Gateway). Direct connections as the `postgres` superuser
+bypass RLS by default (standard PostgreSQL behavior).
 
-The smoke test never prints the API key or sensitive request headers.
+**40 policies** cover SELECT, INSERT, UPDATE, DELETE on user-owned tables.
+Reference/curated data tables (careers, evidence_sources, learning_resources,
+etc.) do not have RLS — they are readable by all authenticated roles.
 
-## Local Development
+### Testing
+
+**Unit tests** (default `pytest` run):
+- Use SQLite in-memory database
+- Use `FakeAuthProvider`, `FakeLLMProvider`, `FakeEmbeddingProvider`
+- No external credentials required
+- pgvector and RLS are not tested (SQLite does not support them)
+
+**Real Supabase integration tests** (opt-in):
+- Set `RUN_POSTGRES_INTEGRATION=1` environment variable
+- Require real `DATABASE_URL` in `.env`
+- Connect to the real Supabase PostgreSQL database
+- Verify pgvector, RLS isolation, and authenticated CRUD
+- Never commit `.env` or test credentials
+
+### Local Development
 
 ### Frontend (.env.local)
 ```
@@ -188,13 +156,17 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ### Backend (.env)
 ```
 ENVIRONMENT=development
-DATABASE_URL=sqlite+aiosqlite:///./test.db
+DATABASE_URL=postgresql+asyncpg://postgres:password@db.<ref>.supabase.co:5432/postgres
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<key>
+SUPABASE_SECRET_KEY=<key>
+SUPABASE_JWT_SECRET=<key>
 LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.8-flash
-LLM_API_KEY=<your-key>
+LLM_API_KEY=<key>
 EMBEDDING_PROVIDER=gemini
 EMBEDDING_MODEL=gemini-embedding-2
-EMBEDDING_API_KEY=<your-key>
+EMBEDDING_API_KEY=<key>
 EMBEDDING_DIMENSION=384
 ```
 
