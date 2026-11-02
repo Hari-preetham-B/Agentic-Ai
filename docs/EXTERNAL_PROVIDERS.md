@@ -57,6 +57,30 @@ provider.
    - Where to obtain: Supabase Dashboard → Settings → API → JWT Secret
    - Secret: Yes (NEVER expose to browser)
    - Used by: Backend (server) only
+   - **Legacy**: Supabase now uses asymmetric JWT signing keys. The backend
+     verifies access tokens using the Supabase JWKS endpoint instead of this
+     shared secret. `SUPABASE_JWT_SECRET` is kept for backward compatibility
+     but is no longer the primary verification mechanism.
+
+### JWT Verification (JWKS)
+
+The backend verifies Supabase Auth access tokens using the project's JWKS
+endpoint, which is derived from `SUPABASE_URL`:
+
+```
+{SUPABASE_URL}/auth/v1/.well-known/jwks.json
+```
+
+Key points:
+- Supabase projects use **asymmetric** JWT signing keys (ECC P-256).
+- The corresponding public keys are published at the JWKS endpoint above.
+- JWKS public keys are safe to retrieve — they are public verification keys.
+- The backend caches JWKS data with a 5-minute TTL and refreshes on key
+  rotation (unknown `kid`).
+- `SUPABASE_SECRET_KEY` (service_role key) is **not** used as a JWT signing
+  secret — it is a different concept for server-to-server API calls.
+- Algorithm confusion is prevented: only RS256/ES256 tokens from the JWKS
+  endpoint are accepted; `alg=none` is never allowed.
 
 5. **PostgreSQL Connection URL** (`DATABASE_URL`)
    - Where to obtain: Supabase Dashboard → Settings → Database → Connection string

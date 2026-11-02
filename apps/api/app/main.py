@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.routes import (
     agent_runs_router,
+    auth_router,
     careers_router,
     careertwin_router,
     evidence_router,
@@ -53,6 +54,7 @@ app.add_middleware(StructuredErrorMiddleware)
 register_error_handlers(app)
 
 app.include_router(health.router)
+app.include_router(auth_router)
 app.include_router(profiles_router)
 app.include_router(resume_router)
 app.include_router(agent_runs_router)

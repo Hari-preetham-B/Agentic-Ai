@@ -17,7 +17,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import AuthenticatedUser, FakeAuthProvider, AuthProvider
+from app.core.auth.provider import (
+    AuthenticatedUser,
+    FakeAuthProvider,
+    AuthProvider,
+)
 from app.core.config import get_settings
 from app.core.database import get_session
 
@@ -33,15 +37,11 @@ def get_auth_provider() -> AuthProvider:
     if _auth_provider is None:
         settings = get_settings()
         # Use real Supabase provider if configured, else fake.
-        if getattr(settings, "supabase_url", None) and getattr(
-            settings, "supabase_secret_key", None
-        ):
+        if getattr(settings, "supabase_url", None):
             from app.core.auth.supabase_provider import SupabaseAuthProvider
 
             _auth_provider = SupabaseAuthProvider(
                 supabase_url=settings.supabase_url,
-                supabase_secret_key=settings.supabase_secret_key,
-                jwt_secret=getattr(settings, "supabase_jwt_secret", None),
             )
         else:
             _auth_provider = FakeAuthProvider()
