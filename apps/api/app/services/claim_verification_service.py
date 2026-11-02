@@ -17,6 +17,7 @@ or confidence score.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.core.embedding import FakeEmbeddingProvider, EmbeddingProvider
@@ -163,8 +164,8 @@ class ClaimVerificationService:
         )
 
         # Step 2: Compare claim against evidence chunks.
-        support_scores: list[float] = []
-        contradiction_scores: list[float] = []
+        support_scores: list[float | None] = [None] * len(chunks)
+        contradiction_scores: list[float | None] = [None] * len(chunks)
         relationships: list[str] = []
         evidence_list: list[dict[str, Any]] = []
         contradictions_list: list[dict[str, Any]] = []
@@ -173,7 +174,7 @@ class ClaimVerificationService:
         # and evidence content. This is deterministic and explainable.
         claim_keywords = self._keywords(claim.claim_text)
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
             chunk_keywords = self._keywords(chunk.content)
             overlap = len(claim_keywords & chunk_keywords)
             total = len(claim_keywords | chunk_keywords)
@@ -185,10 +186,10 @@ class ClaimVerificationService:
             # Determine relationship based on similarity threshold.
             if similarity >= 0.50:
                 relationship = "SUPPORTS"
-                support_scores.append(similarity)
+                support_scores[i] = similarity
             elif similarity <= 0.20:
                 relationship = "CONTRADICTS"
-                contradiction_scores.append(similarity)
+                contradiction_scores[i] = similarity
             else:
                 relationship = "CONTEXTUAL"
 
@@ -230,12 +231,15 @@ class ClaimVerificationService:
             for e in evidence_list
         ]
 
+        support_scores_filtered = [s for s in support_scores if s is not None]
+        contradiction_scores_filtered = [s for s in contradiction_scores if s is not None]
+
         confidence_result = self.confidence_engine.calculate(
             evidence_chunks=evidence_chunk_dicts,
-            support_scores=support_scores,
-            contradiction_scores=contradiction_scores,
+            support_scores=support_scores_filtered,
+            contradiction_scores=contradiction_scores_filtered,
             relationships=relationships,
-            directly_supported=len(support_scores) > 0,
+            directly_supported=len(support_scores_filtered) > 0,
         )
 
         # Step 4: Build explanation.

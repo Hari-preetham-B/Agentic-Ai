@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import uuid
 from typing import Any
 
 from app.core.database import get_session_factory
@@ -64,7 +65,17 @@ class EvidenceIngestionService:
         reliability_score: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> EvidenceSource:
-        """Create or retrieve an evidence source."""
+        """Create or retrieve an evidence source.
+
+        Idempotent: if a source with the same URL already exists, returns it
+        instead of creating a duplicate.
+        """
+        # Check for existing source by URL to avoid duplicates
+        if url:
+            existing = await self.repo.get_source_by_url(url)
+            if existing is not None:
+                return existing
+
         source = EvidenceSource(
             source_type=source_type,
             title=title,
@@ -80,7 +91,7 @@ class EvidenceIngestionService:
     async def ingest_document(
         self,
         *,
-        source_id: str,
+        source_id: str | uuid.UUID,
         document_type: str,
         title: str,
         content: str,
@@ -97,8 +108,11 @@ class EvidenceIngestionService:
         if existing is not None:
             return existing
 
+        # Convert string UUID to UUID object for SQLAlchemy Uuid column type.
+        source_id_uuid = uuid.UUID(source_id) if isinstance(source_id, str) else source_id
+
         document = EvidenceDocument(
-            source_id=source_id,
+            source_id=source_id_uuid,
             document_type=document_type,
             title=title,
             content=content,

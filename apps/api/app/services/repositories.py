@@ -210,6 +210,12 @@ class EvidenceRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_source_by_url(self, url: str) -> EvidenceSource | None:
+        result = await self.session.execute(
+            select(EvidenceSource).where(EvidenceSource.url == url)
+        )
+        return result.scalar_one_or_none()
+
     async def list_sources(
         self, source_type: str | None = None
     ) -> Sequence[EvidenceSource]:
