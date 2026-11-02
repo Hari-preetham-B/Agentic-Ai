@@ -94,6 +94,13 @@ Key points:
 The backend connects to Supabase PostgreSQL via SQLAlchemy 2.x async + asyncpg.
 Alembic manages schema migrations.
 
+**Connection model:**
+- FastAPI connects **directly** to PostgreSQL as the `postgres` role (specified in `DATABASE_URL`)
+- The `postgres` role is the database owner, which **bypasses PostgreSQL RLS** by default
+- `auth.uid()` returns `NULL` for FastAPI connections (no JWT claim propagation)
+- RLS policies exist as defense-in-depth but are **NOT enforced** on the FastAPI connection path
+- Application-layer ownership enforcement is **required** and is the effective authorization boundary
+
 **Required extensions:**
 - `pgvector` — for 384-dimensional embedding storage (created by migration `0003`)
 
@@ -113,6 +120,29 @@ alembic upgrade head
 
 **Current Alembic head:** `0006_row_level_security`
 
+### Application-Layer Authorization
+
+Because FastAPI connects as the `postgres` owner role, PostgreSQL RLS does not
+enforce user isolation on the application database path. Instead, the
+application enforces ownership at the service layer:
+
+- FastAPI routes use `get_current_user` dependency to validate Bearer tokens
+- Profile service functions accept a `user_id` parameter and filter queries by
+  `profiles.user_id == user_id`
+- Child record operations verify profile ownership via join on `profiles.user_id`
+
+This is the effective authorization boundary. RLS policies remain in the
+database as defense-in-depth for connections made through the Supabase API
+Gateway (where `auth.uid()` is populated from JWT claims).
+
+**Authorization summary:**
+| Check | Enforced by | Effective on FastAPI path? |
+|-------|-------------|---------------------------|
+| Token validation | `get_current_user` dependency | Yes |
+| Profile ownership | `profile_service.py` (`user_id` filter) | Yes |
+| Child record ownership | `profile_service.py` (join on `profiles.user_id`) | Yes |
+| PostgreSQL RLS | `auth.uid()` policies | No (bypassed by `postgres` role) |
+
 ### Row Level Security (RLS)
 
 Migration `0006_row_level_security` enables RLS on 15 user-owned tables:
@@ -128,6 +158,45 @@ bypass RLS by default (standard PostgreSQL behavior).
 **40 policies** cover SELECT, INSERT, UPDATE, DELETE on user-owned tables.
 Reference/curated data tables (careers, evidence_sources, learning_resources,
 etc.) do not have RLS — they are readable by all authenticated roles.
+
+### Reference Data Seed System
+
+A deterministic seed command populates curated reference data:
+
+```bash
+cd apps/api
+python -m app.scripts.seed_reference_data
+```
+
+**Behavior:**
+- Connects using `DATABASE_URL` from settings
+- Verifies schema is at Alembic head (`0006_row_level_security`)
+- Seeds reference entities using idempotent upserts (stable identifiers)
+- Commits atomically
+- Reports counts per table
+- Exits non-zero on failure
+- Safe to rerun (idempotent — no duplicate rows)
+- Does NOT touch user-owned data
+- Does NOT delete existing reference data
+
+**Seeded datasets:**
+
+| Dataset | Count | Key fields |
+|---------|-------|------------|
+| careers | 8 | slug, title, domain, summary |
+| career_skills | 50 | skill_name, importance, minimum_level |
+| career_tools | 31 | tool_name, importance |
+| career_projects | 9 | project_type, description, difficulty |
+| career_sources | 9 | title, publisher, url, source_type, reliability |
+| learning_resources | 13 | title, provider, resource_type, url, difficulty |
+| learning_resource_skills | 18 | skill_name, relevance_score, coverage_type |
+| skill_dependencies | 17 | skill, prerequisite_skill, strength |
+| interview_questions | 14 | question_text, question_type, difficulty |
+| interview_question_skills | 19 | skill_name, relevance_score |
+
+**Careers seeded:**
+Software Engineer, Data Analyst, Data Scientist, Machine Learning Engineer,
+AI Engineer, Cybersecurity Analyst, Cloud / DevOps Engineer, Product Analyst
 
 ### Testing
 

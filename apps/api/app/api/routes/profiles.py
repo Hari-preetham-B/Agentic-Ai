@@ -1,4 +1,9 @@
-"""Profile and resume API routes."""
+"""Profile and resume API routes.
+
+All profile endpoints require authentication via Bearer token.
+Application-layer ownership enforcement ensures users can only access
+their own profiles and child records.
+"""
 
 from typing import List, Optional
 from uuid import UUID
@@ -7,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes import resume  # noqa: F401  (router included in main)
+from app.core.auth.dependency import get_current_user
+from app.core.auth.provider import AuthenticatedUser
 from app.core.database import get_session
 from app.schemas.profile import (
     CareerGoalCreate,
@@ -50,7 +57,7 @@ router = APIRouter(tags=["profiles"])
 
 
 # ---------------------------------------------------------------------------
-# Profile CRUD
+# Profile CRUD — all require authenticated user with ownership enforcement
 # ---------------------------------------------------------------------------
 
 
@@ -61,9 +68,11 @@ router = APIRouter(tags=["profiles"])
     summary="Create a new profile draft",
 )
 async def create_profile_endpoint(
-    data: ProfileCreate, session: AsyncSession = Depends(get_session)
+    data: ProfileCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    profile = await create_profile(session, data)
+    profile = await create_profile(session, data, user_id=current_user.user_id)
     return ProfileResponse.model_validate(profile, from_attributes=True)
 
 
@@ -73,9 +82,11 @@ async def create_profile_endpoint(
     summary="Get a profile by ID",
 )
 async def get_profile_endpoint(
-    profile_id: UUID, session: AsyncSession = Depends(get_session)
+    profile_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    profile = await get_profile(session, profile_id)
+    profile = await get_profile(session, profile_id, user_id=current_user.user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return ProfileResponse.model_validate(profile, from_attributes=True)
@@ -87,9 +98,13 @@ async def get_profile_endpoint(
     summary="Get a profile with all child records",
 )
 async def get_profile_detail_endpoint(
-    profile_id: UUID, session: AsyncSession = Depends(get_session)
+    profile_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    profile = await get_profile_detail(session, profile_id)
+    profile = await get_profile_detail(
+        session, profile_id, user_id=current_user.user_id
+    )
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile_to_detail_response(profile)
@@ -104,8 +119,11 @@ async def update_profile_endpoint(
     profile_id: UUID,
     data: ProfileUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    profile = await update_profile(session, profile_id, data)
+    profile = await update_profile(
+        session, profile_id, data, user_id=current_user.user_id
+    )
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return ProfileResponse.model_validate(profile, from_attributes=True)
@@ -117,9 +135,13 @@ async def update_profile_endpoint(
     summary="Delete a profile and all its child records",
 )
 async def delete_profile_endpoint(
-    profile_id: UUID, session: AsyncSession = Depends(get_session)
+    profile_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    deleted = await delete_profile(session, profile_id)
+    deleted = await delete_profile(
+        session, profile_id, user_id=current_user.user_id
+    )
     if not deleted:
         raise HTTPException(status_code=404, detail="Profile not found")
     return None
@@ -136,25 +158,33 @@ async def delete_profile_endpoint(
     summary="Validate a profile without confirming it",
 )
 async def validate_profile_endpoint(
-    profile_id: UUID, session: AsyncSession = Depends(get_session)
+    profile_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    return await validate_profile_for_confirmation(session, profile_id)
+    return await validate_profile_for_confirmation(
+        session, profile_id, user_id=current_user.user_id
+    )
 
 
 @router.post(
     "/profiles/{profile_id}/confirm",
     response_model=ProfileResponse,
-    summary="Confirm a profile after validation",
+    summary="Confirm a profile (status → CONFIRMED)",
 )
 async def confirm_profile_endpoint(
-    profile_id: UUID, session: AsyncSession = Depends(get_session)
+    profile_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
-    profile, validation = await confirm_profile(session, profile_id)
+    profile, validation = await confirm_profile(
+        session, profile_id, user_id=current_user.user_id
+    )
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     if validation is not None and not validation.valid:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "message": "Profile cannot be confirmed. Fix validation errors.",
                 "errors": [e.model_dump() for e in validation.errors],
@@ -165,7 +195,7 @@ async def confirm_profile_endpoint(
 
 
 # ---------------------------------------------------------------------------
-# Child record endpoints
+# Child record endpoints — all require ownership of the parent profile
 # ---------------------------------------------------------------------------
 
 
@@ -182,8 +212,11 @@ def _child_routes(section: str, create_schema, response_schema, update_schema):
         profile_id: UUID,
         data: create_schema,
         session: AsyncSession = Depends(get_session),
+        current_user: AuthenticatedUser = Depends(get_current_user),
     ):
-        instance = await add_child(session, profile_id, section, data)
+        instance = await add_child(
+            session, profile_id, section, data, user_id=current_user.user_id
+        )
         if instance is None:
             raise HTTPException(status_code=404, detail="Profile not found")
         return response_schema.model_validate(instance, from_attributes=True)
@@ -196,9 +229,15 @@ def _child_routes(section: str, create_schema, response_schema, update_schema):
     async def list_children_endpoint(
         profile_id: UUID,
         session: AsyncSession = Depends(get_session),
+        current_user: AuthenticatedUser = Depends(get_current_user),
     ):
-        items = await list_children(session, profile_id, section)
-        return [response_schema.model_validate(i, from_attributes=True) for i in items]
+        items = await list_children(
+            session, profile_id, section, user_id=current_user.user_id
+        )
+        return [
+            response_schema.model_validate(i, from_attributes=True)
+            for i in items
+        ]
 
     @router.put(
         f"/profiles/{{profile_id}}/{section}/{{child_id}}",
@@ -210,8 +249,12 @@ def _child_routes(section: str, create_schema, response_schema, update_schema):
         child_id: UUID,
         data: update_schema,
         session: AsyncSession = Depends(get_session),
+        current_user: AuthenticatedUser = Depends(get_current_user),
     ):
-        instance = await update_child(session, profile_id, section, child_id, data)
+        instance = await update_child(
+            session, profile_id, section, child_id, data,
+            user_id=current_user.user_id,
+        )
         if instance is None:
             raise HTTPException(status_code=404, detail="Record not found")
         return response_schema.model_validate(instance, from_attributes=True)
@@ -225,8 +268,12 @@ def _child_routes(section: str, create_schema, response_schema, update_schema):
         profile_id: UUID,
         child_id: UUID,
         session: AsyncSession = Depends(get_session),
+        current_user: AuthenticatedUser = Depends(get_current_user),
     ):
-        deleted = await delete_child(session, profile_id, section, child_id)
+        deleted = await delete_child(
+            session, profile_id, section, child_id,
+            user_id=current_user.user_id,
+        )
         if not deleted:
             raise HTTPException(status_code=404, detail="Record not found")
         return None
