@@ -238,6 +238,7 @@ class ClaimVerificationService:
                 "source_type": e["source_type"],
                 "document_type": "OTHER",
                 "similarity_score": e["similarity_score"],
+                "keyword_overlap": e["keyword_overlap"],
             }
             for e in evidence_list
         ]

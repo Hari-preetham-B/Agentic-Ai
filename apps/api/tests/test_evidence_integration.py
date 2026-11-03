@@ -1060,6 +1060,102 @@ def test_confidence_engine_llm_confidence_excluded() -> None:
     assert r.classification in ("UNCERTAIN", "CONTRADICTED")
 
 
+def test_confidence_engine_short_claim_supporting_evidence_not_contradicted() -> None:
+    """Short claim + supporting evidence -> SUPPORTED/INFERRED, not CONTRADICTED.
+
+    Regression test: low pgvector similarity between short claim and longer
+    evidence must not cause CONTRADICTED. keyword_overlap (recall) is the
+    primary quality signal, so a short claim that shares key terms with
+    evidence can reach SUPPORTED even with low pgvector similarity.
+    """
+    engine = ConfidenceEngine()
+
+    # Short claim: "Python is commonly used for data analysis."
+    # Evidence: "Software developers design, create, test, and maintain
+    #   computer applications... Common programming languages include Python..."
+    # keyword_overlap = 1.0 (claim keywords: python, software, developers,
+    #   data, analysis; all present in evidence)
+    # similarity_score (pgvector) = 0.2 (low due to length mismatch)
+    r = engine.calculate(
+        evidence_chunks=[
+            {
+                "source_type": "CURATED_KNOWLEDGE",
+                "document_type": "OCCUPATIONAL_PROFILE",
+                "keyword_overlap": 1.0,
+                "similarity_score": 0.3,
+            }
+        ],
+        support_scores=[0.88],  # 0.6*1.0 + 0.4*0.72 ≈ 0.888
+        contradiction_scores=[],
+        relationships=["SUPPORTS"],
+        directly_supported=True,
+    )
+
+    assert r.classification in ("SUPPORTED", "INFERRED")
+    assert r.classification != "CONTRADICTED"
+    assert r.score >= 0.40  # At least INFERRED range
+
+
+def test_confidence_engine_short_claim_irrelevant_evidence_uncertain() -> None:
+    """Short claim with irrelevant evidence -> UNCERTAIN, not CONTRADICTED.
+
+    Low keyword_overlap to unrelated evidence means insufficient evidence,
+    not contradiction.
+    """
+    engine = ConfidenceEngine()
+
+    r = engine.calculate(
+        evidence_chunks=[
+            {
+                "source_type": "CURATED_KNOWLEDGE",
+                "document_type": "OCCUPATIONAL_PROFILE",
+                "keyword_overlap": 0.1,
+                "similarity_score": 0.1,
+            }
+        ],
+        support_scores=[0.3],
+        contradiction_scores=[],
+        relationships=["CONTEXTUAL"],
+        directly_supported=False,
+    )
+
+    assert r.classification in ("UNCERTAIN",)
+    assert r.score < 0.40
+    assert r.classification != "CONTRADICTED"
+    assert r.classification != "SUPPORTED"
+
+
+def test_confidence_engine_short_claim_contradictory_evidence_contradicted() -> None:
+    """Short claim with explicitly contradictory evidence -> CONTRADICTED.
+
+    Negation mismatch between claim and evidence triggers CONTRADICTS
+    relationship, which triggers CONTRADICTED classification.
+    """
+    engine = ConfidenceEngine()
+
+    # Claim: "Software developers do NOT use Python."
+    # Evidence: "Software developers use Python extensively."
+    # keyword_overlap is high (Python, developers shared), but negation
+    # mismatch triggers CONTRADICTS relationship.
+    r = engine.calculate(
+        evidence_chunks=[
+            {
+                "source_type": "CURATED_KNOWLEDGE",
+                "document_type": "OCCUPATIONAL_PROFILE",
+                "keyword_overlap": 1.0,
+                "similarity_score": 0.9,
+            }
+        ],
+        support_scores=[0.9],
+        contradiction_scores=[0.9],
+        relationships=["CONTRADICTS"],
+        directly_supported=False,
+    )
+
+    assert r.classification == "CONTRADICTED"
+    assert r.factors.contradiction_penalty > 0
+
+
 # ===========================================================================
 # Evidence Agent tests (real agent execution)
 # ===========================================================================
