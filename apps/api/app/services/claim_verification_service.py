@@ -180,18 +180,28 @@ class ClaimVerificationService:
             total = len(claim_keywords | chunk_keywords)
             jaccard = overlap / total if total > 0 else 0.0
 
+            # Keyword overlap (recall) is the primary signal for short claims,
+            # as pgvector similarity can be unreliable for short text.
+            keyword_overlap = overlap / len(claim_keywords) if claim_keywords else 0.0
+
             # Combine Jaccard similarity with retrieval similarity.
-            similarity = 0.6 * jaccard + 0.4 * chunk.similarity_score
+            similarity = 0.6 * keyword_overlap + 0.4 * chunk.similarity_score
 
             # Determine relationship based on similarity threshold.
+            # Low similarity means insufficient evidence, NOT contradiction.
+            # Only high similarity (≥ 0.50) indicates support.
             if similarity >= 0.50:
                 relationship = "SUPPORTS"
                 support_scores[i] = similarity
-            elif similarity <= 0.20:
-                relationship = "CONTRADICTS"
-                contradiction_scores[i] = similarity
             else:
-                relationship = "CONTEXTUAL"
+                # similarity < 0.50 means insufficient evidence match,
+                # not contradiction. Check for explicit negation mismatch
+                # between claim and evidence to detect true contradiction.
+                if self._has_negation_mismatch(claim.claim_text, chunk.content):
+                    relationship = "CONTRADICTS"
+                    contradiction_scores[i] = similarity
+                else:
+                    relationship = "CONTEXTUAL"
 
             relationships.append(relationship)
 
@@ -205,6 +215,7 @@ class ClaimVerificationService:
                     "publisher": chunk.publisher,
                     "url": chunk.url,
                     "similarity_score": chunk.similarity_score,
+                    "keyword_overlap": keyword_overlap,
                     "relationship": relationship,
                     "content_snippet": chunk.content[:200],
                 }
@@ -316,6 +327,37 @@ class ClaimVerificationService:
             "how", "all", "each", "every", "some", "any", "no", "not",
         }
         return {w for w in words if w not in stopwords and len(w) > 2}
+
+    @staticmethod
+    def _has_negation_mismatch(claim_text: str, evidence_text: str) -> bool:
+        """Detect explicit negation mismatch between claim and evidence.
+
+        Returns True when the claim contains a negation word that the
+        evidence does not (or vice versa), indicating potential logical
+        opposition rather than mere low similarity.
+
+        Examples of negation triggers: not, never, no, exclusively, only,
+        doesn't, isn't, cannot, won't, shouldn't, mustn't.
+        """
+        negation_triggers = {
+            "not", "never", "no", "exclusively", "only",
+            "doesn't", "does not", "isn't", "is not",
+            "can't", "cannot", "won't", "will not",
+            "shouldn't", "should not", "mustn't", "must not",
+        }
+
+        claim_lower = claim_text.lower()
+        evidence_lower = evidence_text.lower()
+
+        claim_has_negation = any(
+            trigger in claim_lower for trigger in negation_triggers
+        )
+        evidence_has_negation = any(
+            trigger in evidence_lower for trigger in negation_triggers
+        )
+
+        # Negation mismatch: claim negates what evidence affirms (or vice versa)
+        return claim_has_negation != evidence_has_negation
 
     @staticmethod
     def _build_explanation(

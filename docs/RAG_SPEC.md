@@ -74,15 +74,28 @@ comparison and contradiction detection, not taken from an LLM's self-assessment.
 
 ### Confidence formula
 
-```
-base = mean(source_weight × document_weight × similarity)
-agreement = mean(support_scores) × min(1.0, 0.5 + 0.1 × support_count)
-contradiction_penalty = max(contradiction_scores) × 0.25
-freshness_bonus = 0.05 × 0.10
-directness_bonus = 0.05 if directly_supported else 0.0
+Confidence is computed deterministically from observable signals — source
+reliability, document type, retrieval similarity, agreement between evidence
+chunks, contradiction strength, freshness, and directness. LLM self-reported
+confidence is never used.
 
-raw_score = base × 0.30 + agreement × 0.30 - contradiction_penalty + freshness_bonus + directness_bonus
-score = clamp(raw_score, 0.0, 1.0)
+```
+# Positive-support components (each in [0, 1]):
+quality_score      = source_weight × document_weight × keyword_overlap
+agreement_score    = mean(support_scores) × min(1.0, 0.5 + 0.1 × support_count)
+directness_score   = 1.0 if directly_supported else 0.0
+freshness_score    = 0.05
+
+positive_support = (
+    quality_score    * QUALITY_WEIGHT      # 0.20
+    + agreement_score * AGREEMENT_WEIGHT   # 0.25
+    + directness_score * DIRECTNESS_WEIGHT # 0.45
+    + freshness_score * FRESHNESS_WEIGHT   # 0.10
+)
+
+contradiction_penalty = max(contradiction_scores) * CONTRADICTION_WEIGHT  # 0.35
+
+score = clamp(positive_support - contradiction_penalty, 0.0, 1.0)
 ```
 
 Source weights: USER_CONFIRMED=1.0, USER_DOCUMENT=0.9, CURATED_KNOWLEDGE=0.8,
@@ -91,19 +104,28 @@ RETRIEVED_EXTERNAL=0.6, LLM_INFERENCE=0.3.
 Document type weights: OCCUPATIONAL_PROFILE=1.0, SKILL_DEFINITION=0.9,
 INDUSTRY_REPORT=0.8, STANDARD_DOCUMENT=0.7, USER_RESUME=0.6, OTHER=0.5.
 
+Formula weights: QUALITY_WEIGHT=0.20, AGREEMENT_WEIGHT=0.25,
+DIRECTNESS_WEIGHT=0.45, FRESHNESS_WEIGHT=0.10 (sum to 1.0).
+CONTRADICTION_WEIGHT=0.35.
+
 ### Classification thresholds
 
-- CONTRADICTED: max contradiction > 0.50, OR score < 0.10 with contradiction
-- SUPPORTED: score >= 0.70 and contradiction penalty < 0.20
-- INFERRED: score >= 0.40
-- UNCERTAIN: score >= 0.10
-- CONTRADICTED: score < 0.10 (fallback)
+- CONTRADICTED: max contradiction > 0.50 OR score < 0.10 with contradiction
+- SUPPORTED: score >= 0.70 and contradiction_penalty < 0.20
+- INFERRED: score >= 0.40 and score < 0.70
+- UNCERTAIN: score >= 0.10 and score < 0.40
+- CONTRADICTED: score < 0.10 AND max_contradiction > 0.0
 
-**Note**: Due to formula weight constraints (BASE_WEIGHT=0.30,
-AGREEMENT_WEIGHT=0.30, directness=0.05, freshness=0.005), the maximum
-achievable score is ~0.655, which is below SUPPORTED_THRESHOLD=0.70. The
-SUPPORTED classification is therefore not reachable with the current formula
-weights. This is a known limitation.
+### Keyword overlap as primary signal
+
+For short claims, pgvector cosine similarity can be unreliable because short
+text embeddings don't align well with longer document embeddings. The system
+uses keyword overlap (recall of claim keywords in evidence text) as the
+primary quality signal:
+
+keyword_overlap = |claim_keywords ∩ evidence_keywords| / |claim_keywords|
+
+similarity = 0.6 * keyword_overlap + 0.4 * pgvector_similarity
 
 ## Deduplication
 

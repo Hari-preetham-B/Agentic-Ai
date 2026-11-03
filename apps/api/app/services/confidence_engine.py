@@ -5,21 +5,29 @@ confidence assessment.
 
 Formula (documented below):
 
-    base = evidence_quality * source_weight
-    agreement = mean(support_scores) * support_count_factor
-    contradiction_penalty = max(contradiction_scores) * contradiction_weight
-    freshness_bonus = evidence_freshness * freshness_weight
-    directness_bonus = 1.0 if directly_supported else 0.5
+    positive_support = (
+        quality_score * QUALITY_WEIGHT
+        + agreement_score * AGREEMENT_WEIGHT
+        + directness_score * DIRECTNESS_WEIGHT
+        + freshness_score * FRESHNESS_WEIGHT
+    )
 
-    raw_score = base + agreement - contradiction_penalty + freshness_bonus + directness_bonus
-    score = clamp(raw_score, 0.0, 1.0)
+    contradiction_penalty = max(contradiction_scores) * CONTRADICTION_WEIGHT
 
-Classification thresholds (documented below):
+    score = clamp(positive_support - contradiction_penalty, 0.0, 1.0)
+
+Each component is normalized to [0, 1] and the weights sum to 1.0, so the
+maximum achievable score is 1.0. This guarantees that strong direct evidence
+can reach SUPPORTED_THRESHOLD (0.70).
+
+Classification thresholds:
 
     SUPPORTED:   score >= 0.70 and no material contradiction
     INFERRED:    score >= 0.40 and score < 0.70
     UNCERTAIN:   score >= 0.10 and score < 0.40
-    CONTRADICTED: contradiction_penalty > 0.50 OR score < 0.10 with contradiction
+    CONTRADICTED: max_contradiction > 0.50 OR score < 0.10 with contradiction
+
+LLM self-reported confidence is never used as input.
 """
 
 from __future__ import annotations
@@ -52,12 +60,17 @@ INFERRED_THRESHOLD = 0.40
 UNCERTAIN_THRESHOLD = 0.10
 CONTRADICTION_PENALTY_THRESHOLD = 0.50
 
-# Formula weights.
-BASE_WEIGHT = 0.30
-AGREEMENT_WEIGHT = 0.30
-CONTRADICTION_WEIGHT = 0.25
+# Positive-support weights. These must sum to 1.0 so the maximum achievable
+# positive_support is 1.0. QUALITY_WEIGHT is reduced because keyword_overlap
+# (recall) is a stronger signal than raw pgvector similarity for short claims.
+QUALITY_WEIGHT = 0.20
+AGREEMENT_WEIGHT = 0.25
+DIRECTNESS_WEIGHT = 0.45
 FRESHNESS_WEIGHT = 0.10
-DIRECTNESS_BONUS = 0.05
+
+# Contradiction penalty weight. Strong contradiction (max_contradiction=1.0)
+# subtracts 0.35 from positive_support.
+CONTRADICTION_WEIGHT = 0.35
 
 
 @dataclass
@@ -88,10 +101,27 @@ class ConfidenceEngine:
 
     Confidence is computed from:
     - Evidence source reliability (source_type hierarchy)
+    - Document type weight
     - Retrieval similarity scores
     - Number of supporting vs contradicting sources
+    - Direct support (claim directly stated in evidence vs inferred)
     - Evidence freshness
-    - Whether the claim is directly supported or merely inferred
+
+    The formula is a normalized weighted sum:
+
+        positive_support = (
+            quality_score * QUALITY_WEIGHT
+            + agreement_score * AGREEMENT_WEIGHT
+            + directness_score * DIRECTNESS_WEIGHT
+            + freshness_score * FRESHNESS_WEIGHT
+        )
+
+        score = clamp(positive_support - contradiction_penalty, 0, 1)
+
+    where each component is in [0, 1] and QUALITY_WEIGHT + AGREEMENT_WEIGHT +
+    DIRECTNESS_WEIGHT + FRESHNESS_WEIGHT = 1.0. This guarantees the maximum
+    achievable score is 1.0, so SUPPORTED_THRESHOLD (0.70) is reachable with
+    strong direct evidence.
     """
 
     # ------------------------------------------------------------------
@@ -128,20 +158,24 @@ class ConfidenceEngine:
         support_count = sum(1 for r in relationships if r == "SUPPORTS")
         contradiction_count = sum(1 for r in relationships if r == "CONTRADICTS")
 
-        # --- Base score: evidence quality × source weight ---
-        base_components: list[float] = []
+        # --- Base quality score: mean(source_weight × document_weight × similarity) ---
+        quality_components: list[float] = []
         for chunk in evidence_chunks:
             source_type = chunk.get("source_type", "LLM_INFERENCE")
             doc_type = chunk.get("document_type", "OTHER")
-            similarity = chunk.get("similarity_score", 0.0)
+            # Use keyword_overlap (recall) as the primary quality signal,
+            # as pgvector similarity can be unreliable for short text.
+            similarity = chunk.get("keyword_overlap", chunk.get("similarity_score", 0.0))
 
             source_weight = SOURCE_WEIGHTS.get(source_type, 0.3)
             doc_weight = DOCUMENT_TYPE_WEIGHTS.get(doc_type, 0.5)
             quality = source_weight * doc_weight * similarity
-            base_components.append(quality)
+            quality_components.append(quality)
 
-        base_score = (
-            sum(base_components) / len(base_components) if base_components else 0.0
+        quality_score = (
+            sum(quality_components) / len(quality_components)
+            if quality_components
+            else 0.0
         )
 
         # --- Agreement: mean support score × support count factor ---
@@ -153,6 +187,20 @@ class ConfidenceEngine:
         else:
             agreement_score = 0.0
 
+        # --- Directness: 1.0 if directly supported, 0.0 otherwise ---
+        directness_score = 1.0 if directly_supported else 0.0
+
+        # --- Freshness: small constant for recent evidence ---
+        freshness_score = 0.05
+
+        # --- Normalize positive support: weights sum to 1.0 ---
+        positive_support = (
+            quality_score * QUALITY_WEIGHT
+            + agreement_score * AGREEMENT_WEIGHT
+            + directness_score * DIRECTNESS_WEIGHT
+            + freshness_score * FRESHNESS_WEIGHT
+        )
+
         # --- Contradiction penalty ---
         if contradiction_scores:
             max_contradiction = max(contradiction_scores)
@@ -161,21 +209,8 @@ class ConfidenceEngine:
             max_contradiction = 0.0
             contradiction_penalty = 0.0
 
-        # --- Freshness bonus ---
-        # Newer evidence contributes slightly more.
-        freshness_bonus = 0.05  # Small constant bonus for having recent evidence
-
-        # --- Directness bonus ---
-        directness_bonus = DIRECTNESS_BONUS if directly_supported else 0.0
-
         # --- Combine ---
-        raw_score = (
-            base_score * BASE_WEIGHT
-            + agreement_score * AGREEMENT_WEIGHT
-            - contradiction_penalty
-            + freshness_bonus * FRESHNESS_WEIGHT
-            + directness_bonus
-        )
+        raw_score = positive_support - contradiction_penalty
         score = max(0.0, min(1.0, raw_score))
 
         # --- Classification ---
@@ -186,11 +221,11 @@ class ConfidenceEngine:
         )
 
         factors = ConfidenceFactors(
-            base_score=base_score,
+            base_score=quality_score,
             agreement_score=agreement_score,
             contradiction_penalty=contradiction_penalty,
-            freshness_bonus=freshness_bonus * FRESHNESS_WEIGHT,
-            directness_bonus=directness_bonus,
+            freshness_bonus=freshness_score * FRESHNESS_WEIGHT,
+            directness_bonus=directness_score * DIRECTNESS_WEIGHT,
             source_count=source_count,
             support_count=support_count,
             contradiction_count=contradiction_count,
@@ -215,14 +250,17 @@ class ConfidenceEngine:
     ) -> str:
         """Classify a claim based on confidence score and contradiction signals.
 
-        Rules (documented in module docstring):
+        Rules:
 
-        - CONTRADICTED: strong contradiction (penalty > 0.50) OR
-          very low score with any contradiction.
-        - SUPPORTED: score >= 0.70 and no material contradiction.
+        - CONTRADICTED: max_contradiction > 0.50 (actual contradiction evidence)
+          OR score < 0.10 with actual contradiction evidence.
+        - SUPPORTED: score >= 0.70 and contradiction_penalty < 0.20
+          (no material contradiction).
         - INFERRED: score >= 0.40 and score < 0.70.
         - UNCERTAIN: score >= 0.10 and score < 0.40.
-        - CONTRADICTED: score < 0.10 (fallback).
+        - CONTRADICTED: score < 0.10 AND max_contradiction > 0 (there is
+          actual contradiction evidence; low score without contradiction is
+          UNCERTAIN, not CONTRADICTED).
         """
         if max_contradiction > CONTRADICTION_PENALTY_THRESHOLD:
             return "CONTRADICTED"
@@ -232,7 +270,11 @@ class ConfidenceEngine:
             return "INFERRED"
         if score >= UNCERTAIN_THRESHOLD:
             return "UNCERTAIN"
-        return "CONTRADICTED"
+        # score < 0.10: CONTRADICTED only if there's actual contradiction
+        # evidence; low score without contradiction is UNCERTAIN.
+        if max_contradiction > 0.0:
+            return "CONTRADICTED"
+        return "UNCERTAIN"
 
 
 __all__ = ["ConfidenceEngine", "ConfidenceResult", "ConfidenceFactors"]
