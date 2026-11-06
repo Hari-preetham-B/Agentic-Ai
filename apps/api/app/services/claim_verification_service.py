@@ -340,25 +340,40 @@ class ClaimVerificationService:
         Examples of negation triggers: not, never, no, exclusively, only,
         doesn't, isn't, cannot, won't, shouldn't, mustn't.
         """
-        negation_triggers = {
+        negation_triggers = (
             "not", "never", "no", "exclusively", "only",
             "doesn't", "does not", "isn't", "is not",
             "can't", "cannot", "won't", "will not",
             "shouldn't", "should not", "mustn't", "must not",
-        }
+        )
 
         claim_lower = claim_text.lower()
         evidence_lower = evidence_text.lower()
 
-        claim_has_negation = any(
-            trigger in claim_lower for trigger in negation_triggers
+        def has_negation(value: str) -> bool:
+            # Match whole words/phrases. Substring matching produced false
+            # positives from words such as "technology" containing "no".
+            return any(
+                re.search(
+                    r"(?<![a-z])" + re.escape(trigger) + r"(?![a-z])", value
+                )
+                for trigger in negation_triggers
+            )
+
+        # Contradiction requires the evidence to actually discuss the claim's
+        # subject. Low lexical overlap alone is not evidence of contradiction.
+        claim_keywords = {
+            w for w in re.findall(r"\b[a-z][a-z0-9+#.]*\b", claim_lower)
+            if len(w) > 3
+        }
+        evidence_words = set(
+            re.findall(r"\b[a-z][a-z0-9+#.]*\b", evidence_lower)
         )
-        evidence_has_negation = any(
-            trigger in evidence_lower for trigger in negation_triggers
-        )
+        if not (claim_keywords & evidence_words):
+            return False
 
         # Negation mismatch: claim negates what evidence affirms (or vice versa)
-        return claim_has_negation != evidence_has_negation
+        return has_negation(claim_lower) != has_negation(evidence_lower)
 
     @staticmethod
     def _build_explanation(

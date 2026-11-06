@@ -18,6 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth.dependency import get_current_user
+from app.core.auth.ownership import require_owned_profile
+from app.core.auth.provider import AuthenticatedUser
 from app.core.database import get_session
 from app.schemas.careertwin import (
     CareerTwinConflictsResponse,
@@ -46,7 +49,9 @@ async def get_careertwin(
     profile_id: str,
     active_target_career: str | None = None,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinState:
+    await require_owned_profile(session, profile_id, current_user.user_id)
     service = CareerTwinStateService(session)
     try:
         state = await service.get_state(
@@ -69,7 +74,9 @@ async def get_careertwin_insights(
     profile_id: str,
     active_target_career: str | None = None,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinInsightsResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
     service = CareerTwinStateService(session)
     try:
         state = await service.get_state(
@@ -92,7 +99,9 @@ async def get_careertwin_conflicts(
     profile_id: str,
     active_target_career: str | None = None,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinConflictsResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
     service = CareerTwinStateService(session)
     try:
         state = await service.get_state(
@@ -115,7 +124,9 @@ async def get_careertwin_readiness(
     profile_id: str,
     career_slug: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinReadinessResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
     service = CareerReadinessService(session)
     try:
         result = await service.calculate(
@@ -143,7 +154,9 @@ async def get_careertwin_stale(
     profile_id: str,
     active_target_career: str | None = None,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinStaleResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
     service = CareerTwinStateService(session)
     try:
         state = await service.get_state(
@@ -165,7 +178,9 @@ async def get_careertwin_stale(
 async def refresh_careertwin(
     request: CareerTwinRefreshRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> CareerTwinRefreshResponse:
+    await require_owned_profile(session, request.profile_id, current_user.user_id)
     service = CareerTwinReconciliationService(session)
     trigger = "manual"
     result = await service.execute_refresh(

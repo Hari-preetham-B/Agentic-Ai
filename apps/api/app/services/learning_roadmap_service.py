@@ -219,6 +219,21 @@ class LearningRoadmapService:
             },
         }
 
+    async def get_latest_roadmap(
+        self, profile_id: str
+    ) -> dict[str, Any] | None:
+        """Retrieve the most recently generated roadmap for a profile."""
+        result = await self.session.execute(
+            select(Roadmap)
+            .where(Roadmap.profile_id == uuid.UUID(profile_id))
+            .order_by(Roadmap.generated_at.desc())
+            .limit(1)
+        )
+        roadmap = result.scalar_one_or_none()
+        if roadmap is None:
+            return None
+        return await self.get_roadmap(str(roadmap.id))
+
     async def get_roadmap(self, roadmap_id: str) -> dict[str, Any] | None:
         """Retrieve a roadmap by ID."""
         result = await self.session.execute(

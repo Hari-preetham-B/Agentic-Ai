@@ -21,9 +21,15 @@ def create_llm_provider() -> LLMProvider:
         api_key = settings.llm_api_key
         if not api_key:
             raise ValueError("LLM_API_KEY is required for Gemini provider.")
+        fallbacks = [
+            m.strip()
+            for m in (settings.llm_fallback_models or "").split(",")
+            if m.strip()
+        ]
         return GeminiLLMProvider(
             api_key=api_key,
             model=settings.llm_model or "gemini-3.8-flash",
+            fallback_models=fallbacks,
         )
 
     # Default: fake provider for development and testing.

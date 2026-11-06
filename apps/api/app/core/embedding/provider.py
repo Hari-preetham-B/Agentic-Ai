@@ -103,20 +103,33 @@ class FakeEmbeddingProvider:
         return [self._embed_single(t) for t in texts]
 
     def _embed_single(self, text: str) -> list[float]:
-        """Produce a deterministic pseudo-embedding from text.
+        """Produce a deterministic lexical embedding from text.
 
-        The vector is seeded by a hash of the text so identical inputs always
-        produce identical outputs. Values are in [-1, 1].
+        Tokens are feature-hashed into the embedding space, so texts that
+        share vocabulary have genuinely higher cosine similarity. This keeps
+        retrieval and confidence calculations meaningful without an embedding
+        API, while remaining fully deterministic (no external calls, no
+        randomness). Values are normalized to unit length in [-1, 1].
         """
         import hashlib
+        import math
+        import re
 
-        digest = hashlib.sha256(text.encode("utf-8")).digest()
-        values: list[float] = []
-        for i in range(self._dimension):
-            byte = digest[i % len(digest)]
-            # Map byte to [-1, 1]
-            values.append((byte / 127.5) - 1.0)
-        return values
+        values = [0.0] * self._dimension
+        tokens = re.findall(r"[a-z0-9+#.]+", text.lower())
+        if not tokens:
+            return values
+
+        for token in tokens:
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % self._dimension
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0
+            values[index] += sign
+
+        norm = math.sqrt(sum(v * v for v in values))
+        if norm == 0.0:
+            return values
+        return [v / norm for v in values]
 
 
 __all__ = [

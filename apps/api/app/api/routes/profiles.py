@@ -47,6 +47,7 @@ from app.services.profile_service import (
     get_profile,
     get_profile_detail,
     list_children,
+    list_profiles,
     profile_to_detail_response,
     update_child,
     update_profile,
@@ -74,6 +75,24 @@ async def create_profile_endpoint(
 ):
     profile = await create_profile(session, data, user_id=current_user.user_id)
     return ProfileResponse.model_validate(profile, from_attributes=True)
+
+
+@router.get(
+    "/profiles",
+    response_model=List[ProfileResponse],
+    summary="List the authenticated user's profiles",
+)
+async def list_profiles_endpoint(
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    profiles = await list_profiles(
+        session, user_id=current_user.user_id
+    )
+    return [
+        ProfileResponse.model_validate(p, from_attributes=True)
+        for p in profiles
+    ]
 
 
 @router.get(

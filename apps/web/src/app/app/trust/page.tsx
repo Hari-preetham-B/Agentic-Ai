@@ -13,10 +13,10 @@ import { Rule } from "@/components/Rule";
 import { StatusBadge } from "@/components/StatusBadge";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  SUPPORTED: { label: "SUPPORTED", color: "text-emerald-600 border-emerald-600/20 bg-emerald-600/10" },
-  INFERRED: { label: "INFERRED", color: "text-amber-600 border-amber-600/20 bg-amber-600/10" },
+  SUPPORTED: { label: "SUPPORTED", color: "text-zinc-700 border-zinc-300 bg-zinc-100" },
+  INFERRED: { label: "INFERRED", color: "text-red-700 border-red-200 bg-red-50" },
   UNCERTAIN: { label: "UNCERTAIN", color: "text-muted border-muted/20 bg-muted/10" },
-  CONTRADICTED: { label: "CONTRADICTED", color: "text-red-600 border-red-600/20 bg-red-600/10" },
+  CONTRADICTED: { label: "CONTRADICTED", color: "text-white border-red-600 bg-red-600" },
 };
 
 export default function TrustPage() {

@@ -228,7 +228,7 @@ export default function InterviewPage() {
               <dt className="text-mono-xs font-medium text-muted mb-1">
                 Weakest
               </dt>
-              <dd className="text-lg font-semibold font-mono text-red-400">
+              <dd className="text-lg font-semibold font-mono text-red-600">
                 {results.weaknesses.join(", ") || "None"}
               </dd>
             </div>

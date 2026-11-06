@@ -14,7 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.career import Career, CareerSkill
-from app.models.interview import InterviewSession, InterviewSkillResult
+from app.models.interview import (
+    InterviewSession,
+    InterviewSkillResult,
+    InterviewTurn,
+)
 from app.models.learning import Roadmap, RoadmapItem
 from app.models.profile import Profile, Skill
 from app.schemas.careertwin import (
@@ -75,9 +79,27 @@ class CareerTwinStateService:
         career_goals = list(goals_result.scalars().all())
         target_careers = [g.target_role for g in career_goals]
 
-        # Determine active target career.
-        if active_target_career is None and target_careers:
-            active_target_career = target_careers[0]
+        profile_skill_dicts = [
+            {
+                "name": s.name,
+                "proficiency": s.proficiency,
+                "years_experience": (
+                    float(s.years_experience) if s.years_experience else None
+                ),
+                "source": s.source,
+            }
+            for s in profile_skills
+        ]
+
+        # Resolve the active target career to a curated career slug. Goals are
+        # free-text roles, so resolve by slug, then title, then fall back to
+        # the highest deterministic recommendation rather than leaving the
+        # CareerTwin without a career position.
+        active_target_career = await self._resolve_career_slug(
+            active_target_career=active_target_career,
+            career_goals=career_goals,
+            profile_skill_dicts=profile_skill_dicts,
+        )
 
         # Load education, experience, projects.
         from app.models.profile import Education, Experience, Project
@@ -136,15 +158,6 @@ class CareerTwinStateService:
             career_service = CareerKnowledgeService(self.session)
             career = await career_service.get_career(active_target_career)
             if career:
-                profile_skill_dicts = [
-                    {
-                        "name": s.name,
-                        "proficiency": s.proficiency,
-                        "years_experience": float(s.years_experience) if s.years_experience else None,
-                        "source": s.source,
-                    }
-                    for s in profile_skills
-                ]
                 match = compute_skill_match(
                     career_id=career["id"],
                     career_title=career["title"],
@@ -160,6 +173,11 @@ class CareerTwinStateService:
                     match_result=match,
                 )
 
+                core_missing = [
+                    m["skill_name"]
+                    for m in match.missing
+                    if m.get("importance") == "CORE"
+                ]
                 career_fit = CareerTwinCareerFit(
                     career_id=career["id"],
                     career_title=career["title"],
@@ -167,9 +185,11 @@ class CareerTwinStateService:
                     readiness_level="NOT_READY",  # Will be computed separately
                     strongest_areas=fit.strengths[:3],
                     weakest_areas=fit.gaps[:3],
-                    blockers=[],
+                    blockers=core_missing[:5],
                     rationale=fit.fit_summary,
                 )
+
+                from app.services.skill_matching import skill_gap_priority
 
                 skill_gaps = [
                     CareerTwinSkillGap(
@@ -178,9 +198,22 @@ class CareerTwinStateService:
                         current_level=m.get("user_level"),
                         required_level=m.get("required_level"),
                         status=m.get("status", "MISSING"),
+                        priority=skill_gap_priority(
+                            m.get("status", "MISSING"),
+                            m.get("importance", "SUPPORTING"),
+                        ),
                     )
                     for m in (match.missing + match.partial + match.matched)
                 ]
+                skill_gaps.sort(
+                    key=lambda g: (
+                        {"P0": 0, "P1": 1, "P2": 2}.get(g.priority or "P2", 3),
+                        {"CORE": 0, "IMPORTANT": 1, "SUPPORTING": 2}.get(
+                            g.importance, 3
+                        ),
+                        g.skill_name,
+                    )
+                )
 
         # Roadmap summary.
         roadmap_summary = await self._get_roadmap_summary(profile_id)
@@ -205,6 +238,8 @@ class CareerTwinStateService:
 
         # Stale state.
         stale_components = await self._check_stale_state(profile_id, active_target_career)
+        if any(s.component == "roadmap" for s in stale_components):
+            roadmap_summary = roadmap_summary.model_copy(update={"stale": True})
 
         # Insights.
         insights = self._generate_insights(
@@ -232,6 +267,14 @@ class CareerTwinStateService:
             projects=projects,
             confirmed_skills=confirmed_skills,
             documented_skills=[],
+            profile_completeness=self._calculate_completeness(
+                profile=profile,
+                education=education,
+                experience=experience,
+                projects=projects,
+                skills=profile_skills,
+                career_goals=career_goals,
+            ),
             target_careers=target_careers,
             active_target_career=active_target_career,
             career_fit=career_fit,
@@ -246,6 +289,122 @@ class CareerTwinStateService:
             readiness_score=readiness_score,
             last_updated_at=datetime.now(timezone.utc).isoformat(),
             metadata={"source": "deterministic_aggregation"},
+        )
+
+    async def _resolve_career_slug(
+        self,
+        *,
+        active_target_career: str | None,
+        career_goals: list,
+        profile_skill_dicts: list[dict],
+    ) -> str | None:
+        """Resolve a user-facing career reference to a curated career slug."""
+        career_service = CareerKnowledgeService(self.session)
+        careers = await career_service.list_careers()
+        if not careers:
+            return None
+
+        def match(value: str | None) -> str | None:
+            if not value:
+                return None
+            needle = value.strip().lower()
+            for career in careers:
+                if needle == career["slug"].lower():
+                    return career["slug"]
+            for career in careers:
+                title = career["title"].lower()
+                if needle == title or needle in title or title in needle:
+                    return career["slug"]
+            return None
+
+        resolved = match(active_target_career)
+        if resolved:
+            return resolved
+
+        for goal in sorted(career_goals, key=lambda g: g.priority or 1):
+            resolved = match(goal.target_role)
+            if resolved:
+                return resolved
+
+        # No explicit target resolved: use the highest deterministic match so
+        # the CareerTwin always presents an explainable career position.
+        from app.services.career_recommendation_service import (
+            CareerRecommendationService,
+        )
+
+        recommendations = await CareerRecommendationService(
+            self.session
+        ).recommend(profile_skills=profile_skill_dicts, limit=1)
+        if recommendations:
+            for career in careers:
+                if career["id"] == recommendations[0].career_id:
+                    return career["slug"]
+        return None
+
+    def _calculate_completeness(
+        self,
+        *,
+        profile,
+        education: list[dict],
+        experience: list[dict],
+        projects: list[dict],
+        skills: list,
+        career_goals: list,
+    ) -> Any:
+        """Deterministic weighted profile completeness."""
+        from app.schemas.careertwin import (
+            ProfileCompleteness,
+            ProfileCompletenessSection,
+        )
+
+        basic_present = bool(
+            profile.full_name
+            and profile.email
+            and (profile.headline or profile.summary)
+        )
+        sections = [
+            ProfileCompletenessSection(
+                key="basic",
+                label="Personal information",
+                present=basic_present,
+                weight=0.20,
+            ),
+            ProfileCompletenessSection(
+                key="education",
+                label="Education",
+                present=len(education) > 0,
+                weight=0.15,
+            ),
+            ProfileCompletenessSection(
+                key="skills",
+                label="Skills (at least 3)",
+                present=len(skills) >= 3,
+                weight=0.25,
+            ),
+            ProfileCompletenessSection(
+                key="projects",
+                label="Projects",
+                present=len(projects) > 0,
+                weight=0.15,
+            ),
+            ProfileCompletenessSection(
+                key="experience",
+                label="Experience",
+                present=len(experience) > 0,
+                weight=0.10,
+            ),
+            ProfileCompletenessSection(
+                key="goals",
+                label="Career goal",
+                present=len(career_goals) > 0,
+                weight=0.15,
+            ),
+        ]
+        score = round(sum(s.weight for s in sections if s.present), 4)
+        return ProfileCompleteness(
+            score=score,
+            sections=sections,
+            missing=[s.label for s in sections if not s.present],
         )
 
     async def _get_roadmap_summary(self, profile_id: str) -> CareerTwinRoadmapSummary:
@@ -264,12 +423,15 @@ class CareerTwinStateService:
         )
         items = items_result.scalars().all()
 
+        completed = sum(1 for i in items if i.status == "COMPLETED")
         return CareerTwinRoadmapSummary(
             roadmap_id=str(latest.id),
             total_skills=len(items),
             p0_count=sum(1 for i in items if i.priority == "P0"),
             p1_count=sum(1 for i in items if i.priority == "P1"),
             p2_count=sum(1 for i in items if i.priority == "P2"),
+            completed_items=completed,
+            progress=round(completed / len(items), 4) if items else 0.0,
             total_estimated_hours=sum(i.estimated_hours or 0 for i in items),
             status=latest.status,
             generated_at=latest.generated_at.isoformat(),
@@ -305,9 +467,24 @@ class CareerTwinStateService:
         weaknesses = [s.skill_name for s in skills if (s.average_score or 0) < 0.50]
         recommended = sorted(weaknesses)
 
+        # Latest overall score is the mean of evaluated turns in the latest
+        # completed session — an observable interview signal, not inference.
+        latest_turns = await self.session.execute(
+            select(InterviewTurn).where(
+                InterviewTurn.session_id == latest.id,
+                InterviewTurn.score.is_not(None),
+            )
+        )
+        turn_scores = [t.score for t in latest_turns.scalars().all()]
+        latest_overall = (
+            round(sum(turn_scores) / len(turn_scores), 4)
+            if turn_scores
+            else None
+        )
+
         return CareerTwinInterviewSummary(
             sessions_count=len(sessions),
-            latest_overall_score=None,
+            latest_overall_score=latest_overall,
             skill_performance=[
                 {
                     "skill_name": s.skill_name,
@@ -336,6 +513,7 @@ class CareerTwinStateService:
         status_counts = {}
         for c in claims:
             status_counts[c.status] = status_counts.get(c.status, 0) + 1
+        last_verified = max((c.created_at for c in claims), default=None)
 
         return CareerTwinEvidenceSummary(
             total_claims=len(claims),
@@ -343,6 +521,9 @@ class CareerTwinStateService:
             inferred_count=status_counts.get("INFERRED", 0),
             uncertain_count=status_counts.get("UNCERTAIN", 0),
             contradicted_count=status_counts.get("CONTRADICTED", 0),
+            last_verified_at=(
+                last_verified.isoformat() if last_verified else None
+            ),
         )
 
     def _calculate_readiness(
@@ -549,8 +730,30 @@ class CareerTwinStateService:
         roadmaps = result.scalars().all()
         if roadmaps:
             latest = max(roadmaps, key=lambda r: r.generated_at)
+            # A profile edit after roadmap generation makes the roadmap stale.
+            profile_result = await self.session.execute(
+                select(Profile).where(Profile.id == uuid.UUID(profile_id))
+            )
+            profile = profile_result.scalar_one_or_none()
+            if (
+                profile is not None
+                and profile.updated_at
+                and latest.generated_at
+                and profile.updated_at > latest.generated_at
+            ):
+                stale.append(
+                    CareerTwinStaleState(
+                        component="roadmap",
+                        generated_at=latest.generated_at.isoformat(),
+                        source_updated_at=profile.updated_at.isoformat(),
+                        is_stale=True,
+                        reason="Profile changed after the roadmap was generated.",
+                    )
+                )
             # Check if career target changed after roadmap generation.
-            if active_target_career:
+            if active_target_career and not any(
+                s.component == "roadmap" for s in stale
+            ):
                 career_result = await self.session.execute(
                     select(Career).where(Career.slug == active_target_career)
                 )

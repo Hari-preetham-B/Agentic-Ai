@@ -56,10 +56,21 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that yields an async database session."""
+    """FastAPI dependency that yields an async database session.
+
+    The transaction is committed when the request completes successfully and
+    rolled back when it raises, so writes made inside a route are actually
+    persisted instead of being discarded when the session closes.
+    """
     factory = get_session_factory()
     async with factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        else:
+            await session.commit()
 
 
 async def dispose_engine() -> None:

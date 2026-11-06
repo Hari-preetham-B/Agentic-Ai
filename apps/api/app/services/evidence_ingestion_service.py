@@ -70,9 +70,23 @@ class EvidenceIngestionService:
         Idempotent: if a source with the same URL already exists, returns it
         instead of creating a duplicate.
         """
-        # Check for existing source by URL to avoid duplicates
+        # Check for existing source by URL to avoid duplicates. Sources
+        # without a URL (curated internal knowledge) are deduplicated by
+        # publisher + title so reruns stay idempotent.
         if url:
             existing = await self.repo.get_source_by_url(url)
+            if existing is not None:
+                return existing
+        else:
+            from sqlalchemy import select
+
+            result = await self.session.execute(
+                select(EvidenceSource).where(
+                    EvidenceSource.title == title,
+                    EvidenceSource.publisher == publisher,
+                )
+            )
+            existing = result.scalar_one_or_none()
             if existing is not None:
                 return existing
 
@@ -127,7 +141,7 @@ class EvidenceIngestionService:
             embedding = await self.embedding_provider.embed_text(
                 chunk.content
             )
-            chunk.embedding = self._serialize_embedding(embedding)
+            chunk.embedding = self._embedding_value(embedding)
             await self.repo.create_chunk(chunk)
 
         return document
@@ -191,6 +205,20 @@ class EvidenceIngestionService:
             start = max(start + 1, end - overlap)
 
         return chunks
+
+    def _embedding_value(self, embedding: list[float]):
+        """Return the storage representation for the active dialect.
+
+        PostgreSQL uses pgvector and accepts a list of floats. SQLite (tests)
+        stores the vector as packed bytes.
+        """
+        try:
+            dialect = self.session.get_bind().dialect.name
+        except Exception:  # pragma: no cover - defensive
+            dialect = "sqlite"
+        if dialect == "postgresql":
+            return [float(v) for v in embedding]
+        return self._serialize_embedding(embedding)
 
     @staticmethod
     def _serialize_embedding(embedding: list[float]) -> bytes:

@@ -40,6 +40,21 @@ def sa_json():
     return JSON()
 
 
+def embedding_column_type():
+    """Embedding column type: pgvector on PostgreSQL, bytes on SQLite.
+
+    The Alembic migration creates ``vector(384)`` on PostgreSQL. The ORM model
+    must use the same type, otherwise inserts are sent as ``bytea`` and are
+    rejected by the database. Tests on SQLite keep using ``LargeBinary``.
+    """
+    try:
+        from pgvector.sqlalchemy import Vector
+
+        return LargeBinary().with_variant(Vector(384), "postgresql")
+    except ImportError:  # pragma: no cover - pgvector missing
+        return LargeBinary()
+
+
 class EvidenceSource(Base):
     """A source of evidence (e.g. O*NET, BLS, user document, curated knowledge)."""
 
@@ -116,7 +131,7 @@ class EvidenceChunk(Base):
         "metadata", sa_json(), nullable=True
     )
     embedding: Mapped[Optional[bytes]] = mapped_column(
-        LargeBinary, nullable=True
+        embedding_column_type(), nullable=True
     )
     created_at: Mapped[created_at]
 

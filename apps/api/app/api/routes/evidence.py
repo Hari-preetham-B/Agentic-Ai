@@ -16,6 +16,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth.dependency import get_current_user
+from app.core.auth.ownership import require_owned_claim, require_owned_profile
+from app.core.auth.provider import AuthenticatedUser
+from app.core.config import get_settings
 from app.core.database import get_session
 from app.services.claim_verification_service import ClaimVerificationService
 from app.services.evidence_ingestion_service import EvidenceIngestionService
@@ -62,6 +66,7 @@ class EvidenceSearchResponse(BaseModel):
 async def search_evidence(
     request: EvidenceSearchRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> EvidenceSearchResponse:
     retriever = EvidenceRetriever(session)
     results = await retriever.search(
@@ -108,7 +113,10 @@ class ClaimVerifyResponse(BaseModel):
 async def verify_claim(
     request: ClaimVerifyRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ClaimVerifyResponse:
+    if request.profile_id:
+        await require_owned_profile(session, request.profile_id, current_user.user_id)
     service = ClaimVerificationService(session)
     result = await service.verify_single_claim_text(
         claim_text=request.claim_text,
@@ -135,6 +143,46 @@ class ClaimResponse(BaseModel):
     created_at: str
 
 
+class ClaimListResponse(BaseModel):
+    claims: list[ClaimResponse]
+
+
+@router.get(
+    "/claims",
+    response_model=ClaimListResponse,
+    summary="List claims verified for a profile",
+)
+async def list_claims(
+    profile_id: str,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ClaimListResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
+    repo = EvidenceRepository(session)
+    claims = await repo.list_claims_by_profile(
+        UUID(profile_id), limit=max(1, min(limit, 200))
+    )
+    return ClaimListResponse(
+        claims=[
+            ClaimResponse(
+                id=str(c.id),
+                profile_id=str(c.profile_id) if c.profile_id else None,
+                claim_text=c.claim_text,
+                claim_type=c.claim_type,
+                status=c.status,
+                confidence_score=(
+                    float(c.confidence_score)
+                    if c.confidence_score is not None
+                    else None
+                ),
+                created_at=c.created_at.isoformat(),
+            )
+            for c in claims
+        ]
+    )
+
+
 @router.get(
     "/claims/{claim_id}",
     response_model=ClaimResponse,
@@ -143,15 +191,9 @@ class ClaimResponse(BaseModel):
 async def get_claim(
     claim_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ClaimResponse:
-    repo = EvidenceRepository(session)
-    import uuid
-
-    claim = await repo.get_claim(UUID(claim_id))
-    if claim is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Claim not found"
-        )
+    claim = await require_owned_claim(session, claim_id, current_user.user_id)
     return ClaimResponse(
         id=str(claim.id),
         profile_id=str(claim.profile_id) if claim.profile_id else None,
@@ -175,11 +217,12 @@ async def get_claim(
 async def get_claim_evidence(
     claim_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> list[dict]:
+    claim = await require_owned_claim(session, claim_id, current_user.user_id)
     repo = EvidenceRepository(session)
-    import uuid
 
-    links = await repo.get_claim_evidence(UUID(claim_id))
+    links = await repo.get_claim_evidence(claim.id)
     return [
         {
             "evidence_chunk_id": str(link.evidence_chunk_id),
@@ -228,7 +271,16 @@ class EvidenceIngestResponse(BaseModel):
 async def ingest_evidence(
     request: EvidenceIngestRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> EvidenceIngestResponse:
+    if not get_settings().enable_evidence_ingest_api:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Evidence ingestion over HTTP is disabled. Use the seed command: "
+                "python -m app.scripts.seed_evidence"
+            ),
+        )
     ingestion = EvidenceIngestionService(session)
 
     # Create source.

@@ -18,6 +18,7 @@ directly), no ownership filter is applied for backward compatibility.
 from typing import List, Optional, Sequence, Type, TypeVar
 import uuid
 
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,14 +57,28 @@ from app.services.validation import validate_for_confirmation
 M = TypeVar("M")
 
 
+def _normalize_user_id(user_id: Optional[str]) -> Optional[uuid.UUID]:
+    """Normalize an authenticated user ID to a UUID for comparison."""
+    if user_id is None or isinstance(user_id, uuid.UUID):
+        return user_id
+    try:
+        return uuid.UUID(str(user_id))
+    except (ValueError, TypeError):
+        return None
+
+
 def _ownership_filter(user_id: Optional[str]):
     """Return a SQLAlchemy where clause filtering profiles by user_id.
 
     When user_id is None, returns a clause that is always true (no filter).
+    A malformed (non-UUID) authenticated user ID matches no profile.
     """
     if user_id is None:
         return Profile.id.is_not(None)  # always true
-    return Profile.user_id == user_id
+    normalized = _normalize_user_id(user_id)
+    if normalized is None:
+        return sa.false()
+    return Profile.user_id == normalized
 
 
 async def _get_profile_or_404(
@@ -83,7 +98,7 @@ async def create_profile(
 ) -> Profile:
     profile = Profile(
         id=uuid.uuid4(),
-        user_id=user_id,
+        user_id=_normalize_user_id(user_id),
         full_name=data.full_name,
         headline=data.headline,
         email=data.email,
@@ -102,6 +117,18 @@ async def get_profile(
     session: AsyncSession, profile_id, user_id: Optional[str] = None
 ) -> Optional[Profile]:
     return await _get_profile_or_404(session, profile_id, user_id)
+
+
+async def list_profiles(
+    session: AsyncSession, user_id: Optional[str] = None
+) -> Sequence[Profile]:
+    """List profiles visible to the authenticated user, newest first."""
+    result = await session.execute(
+        select(Profile)
+        .where(_ownership_filter(user_id))
+        .order_by(Profile.updated_at.desc())
+    )
+    return result.scalars().all()
 
 
 async def get_profile_detail(
@@ -178,7 +205,7 @@ async def _get_child_or_404(
         model_cls.profile_id == profile_id,
     ]
     if user_id is not None:
-        where_conditions.append(Profile.user_id == user_id)
+        where_conditions.append(_ownership_filter(user_id))
 
     result = await session.execute(
         select(model_cls)

@@ -17,6 +17,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth.dependency import get_current_user
+from app.core.auth.ownership import (
+    require_owned_profile,
+    require_owned_roadmap,
+)
+from app.core.auth.provider import AuthenticatedUser
 from app.core.database import get_session
 from app.services.learning_roadmap_service import LearningRoadmapService
 from app.services.skill_dependency_service import SkillDependencyService
@@ -135,7 +141,9 @@ class RoadmapResponse(BaseModel):
 async def generate_roadmap(
     request: GenerateRoadmapRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> RoadmapResponse:
+    await require_owned_profile(session, request.profile_id, current_user.user_id)
     # Load profile skills if not provided
     profile_skills = request.profile_skills
     if not profile_skills:
@@ -184,6 +192,44 @@ async def generate_roadmap(
 
 
 @router.get(
+    "/learning/roadmaps",
+    response_model=RoadmapResponse,
+    summary="Get the latest roadmap for a profile",
+)
+async def get_latest_roadmap(
+    profile_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> RoadmapResponse:
+    await require_owned_profile(session, profile_id, current_user.user_id)
+    service = LearningRoadmapService(session)
+    roadmap = await service.get_latest_roadmap(profile_id)
+    if roadmap is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No roadmap has been generated for this profile yet",
+        )
+    items = roadmap["items"]
+    return RoadmapResponse(
+        roadmap_id=roadmap["roadmap_id"],
+        profile_id=roadmap["profile_id"],
+        career_id=roadmap["career_id"],
+        status=roadmap["status"],
+        generated_at=roadmap["generated_at"],
+        items=items,
+        summary={
+            "total_skills": len(items),
+            "p0_count": sum(1 for i in items if i["priority"] == "P0"),
+            "p1_count": sum(1 for i in items if i["priority"] == "P1"),
+            "p2_count": sum(1 for i in items if i["priority"] == "P2"),
+            "total_estimated_hours": sum(
+                i.get("estimated_hours") or 0 for i in items
+            ),
+        },
+    )
+
+
+@router.get(
     "/learning/roadmaps/{roadmap_id}",
     response_model=RoadmapResponse,
     summary="Get a roadmap by ID",
@@ -191,7 +237,9 @@ async def generate_roadmap(
 async def get_roadmap(
     roadmap_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> RoadmapResponse:
+    await require_owned_roadmap(session, roadmap_id, current_user.user_id)
     service = LearningRoadmapService(session)
     roadmap = await service.get_roadmap(roadmap_id)
     if roadmap is None:
@@ -219,7 +267,10 @@ async def regenerate_roadmap(
     roadmap_id: str,
     request: GenerateRoadmapRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> RoadmapResponse:
+    await require_owned_roadmap(session, roadmap_id, current_user.user_id)
+    await require_owned_profile(session, request.profile_id, current_user.user_id)
     service = LearningRoadmapService(session)
 
     profile_skills = request.profile_skills
@@ -264,6 +315,75 @@ async def regenerate_roadmap(
         generated_at=roadmap["generated_at"],
         items=roadmap["items"],
         summary=result.get("summary", {}),
+    )
+
+
+class RoadmapItemProgressRequest(BaseModel):
+    status: str = Field(..., description="PENDING, IN_PROGRESS, or COMPLETED")
+
+
+class RoadmapItemProgressResponse(BaseModel):
+    item_id: str
+    roadmap_id: str
+    skill_name: str
+    status: str
+    completed_items: int
+    total_items: int
+    progress: float
+
+
+@router.patch(
+    "/learning/roadmaps/{roadmap_id}/items/{item_id}",
+    response_model=RoadmapItemProgressResponse,
+    summary="Update learning progress for a roadmap item",
+)
+async def update_roadmap_item_progress(
+    roadmap_id: str,
+    item_id: str,
+    request: RoadmapItemProgressRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> RoadmapItemProgressResponse:
+    from sqlalchemy import select
+    from app.models.learning import RoadmapItem
+
+    await require_owned_roadmap(session, roadmap_id, current_user.user_id)
+    new_status = request.status.upper()
+    if new_status not in ("PENDING", "IN_PROGRESS", "COMPLETED"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Status must be PENDING, IN_PROGRESS, or COMPLETED.",
+        )
+
+    result = await session.execute(
+        select(RoadmapItem).where(
+            RoadmapItem.id == UUID(item_id),
+            RoadmapItem.roadmap_id == UUID(roadmap_id),
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Roadmap item not found"
+        )
+
+    item.status = new_status
+    await session.commit()
+    await session.refresh(item)
+
+    items_result = await session.execute(
+        select(RoadmapItem).where(RoadmapItem.roadmap_id == UUID(roadmap_id))
+    )
+    items = list(items_result.scalars().all())
+    completed = sum(1 for i in items if i.status == "COMPLETED")
+    return RoadmapItemProgressResponse(
+        item_id=str(item.id),
+        roadmap_id=str(item.roadmap_id),
+        skill_name=item.skill_name,
+        status=item.status,
+        completed_items=completed,
+        total_items=len(items),
+        progress=round(completed / len(items), 4) if items else 0.0,
     )
 
 

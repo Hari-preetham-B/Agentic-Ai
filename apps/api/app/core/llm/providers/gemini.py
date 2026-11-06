@@ -41,6 +41,7 @@ class GeminiLLMProvider:
         self,
         api_key: str,
         model: str = "gemini-3.8-flash",
+        fallback_models: list[str] | None = None,
         timeout: float = 60.0,
     ) -> None:
         if not api_key:
@@ -48,6 +49,11 @@ class GeminiLLMProvider:
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+        # Primary model first, then configured fallbacks (deduplicated).
+        self._models = [model]
+        for candidate in fallback_models or []:
+            if candidate and candidate not in self._models:
+                self._models.append(candidate)
         self._client = genai.Client(api_key=api_key)
 
     @property
@@ -79,14 +85,32 @@ class GeminiLLMProvider:
 
         config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
-        # Call Gemini with retry for transient errors.
-        response = await self._call_with_retry(
-            lambda: self._client.models.generate_content(
-                model=self._model,
-                contents=contents,
-                config=config,
-            )
-        )
+        # Call Gemini, walking the fallback chain when a model is unavailable
+        # (overloaded, retired, or rate limited).
+        response = None
+        last_exception: Exception | None = None
+        for model in self._models:
+            try:
+                response = await self._call_with_retry(
+                    lambda m=model: self._client.models.generate_content(
+                        model=m,
+                        contents=contents,
+                        config=config,
+                    )
+                )
+                if model != self._model:
+                    logger.warning(
+                        "Gemini model %s unavailable; served by fallback %s",
+                        self._model,
+                        model,
+                    )
+                break
+            except Exception as exc:  # noqa: BLE001 - try the next model
+                last_exception = exc
+                logger.warning("Gemini model %s failed: %s", model, exc)
+        if response is None:
+            assert last_exception is not None
+            raise last_exception
 
         # Extract content.
         content = response.text or ""
@@ -127,7 +151,7 @@ class GeminiLLMProvider:
             content=content,
             structured_output=structured_output,
             provider=self.provider_name,
-            model=self._model,
+            model=response.model_version or self._model,
             usage=usage,
             request_id=request_id,
             metadata={"deterministic": False},

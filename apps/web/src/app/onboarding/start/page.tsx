@@ -29,8 +29,8 @@ export default function OnboardingStartPage() {
           whileHover={{ scale: 1.02 }}
           className="rounded-sm border border-border-soft bg-panel p-10 transition-all duration-300"
           style={{
-            borderColor: path === "manual" ? "#6366f1" : undefined,
-            backgroundColor: path === "manual" ? "rgba(99, 102, 241, 0.06)" : undefined,
+            borderColor: path === "manual" ? "#dc2626" : undefined,
+            backgroundColor: path === "manual" ? "rgba(220, 38, 38, 0.06)" : undefined,
           }}
         >
           <div className="flex items-center gap-3 mb-6">
@@ -57,8 +57,8 @@ export default function OnboardingStartPage() {
           whileHover={{ scale: 1.02 }}
           className="rounded-sm border border-border-soft bg-panel p-10 transition-all duration-300"
           style={{
-            borderColor: path === "resume" ? "#6366f1" : undefined,
-            backgroundColor: path === "resume" ? "rgba(99, 102, 241, 0.06)" : undefined,
+            borderColor: path === "resume" ? "#dc2626" : undefined,
+            backgroundColor: path === "resume" ? "rgba(220, 38, 38, 0.06)" : undefined,
           }}
         >
           <div className="flex items-center gap-3 mb-6">

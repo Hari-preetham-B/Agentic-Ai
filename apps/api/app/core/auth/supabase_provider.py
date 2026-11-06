@@ -23,6 +23,9 @@ from jwt import PyJWKClient
 
 from app.core.auth.provider import AuthenticatedUser, AuthProvider
 
+# Asymmetric algorithms that a Supabase project may publish through JWKS.
+_ALLOWED_ALGORITHMS = ("ES256", "ES384", "RS256", "RS384", "PS256")
+
 
 class SupabaseAuthProvider:
     """Auth provider that validates Supabase JWT tokens using JWKS.
@@ -92,11 +95,22 @@ class SupabaseAuthProvider:
                     "Invalid token: unable to find signing key."
                 ) from exc
 
+        # Supabase projects sign access tokens with either a legacy shared
+        # secret (HS256) or an asymmetric signing key (ES256/RS256). Only the
+        # asymmetric algorithms can be verified from the project JWKS, so the
+        # algorithm is taken from the matching published key and checked
+        # against an allowlist — never from the token header alone.
+        algorithm = getattr(signing_key, "algorithm_name", None)
+        if algorithm not in _ALLOWED_ALGORITHMS:
+            raise ValueError(
+                f"Unsupported token signing algorithm: {algorithm or 'unknown'}"
+            )
+
         try:
             payload = jwt.decode(
                 token,
                 signing_key.key,
-                algorithms=["RS256"],
+                algorithms=[algorithm],
                 audience="authenticated",
                 issuer=f"{self.supabase_url}/auth/v1",
                 options={

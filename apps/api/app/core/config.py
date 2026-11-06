@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     supabase_publishable_key: str | None = None
     supabase_secret_key: str | None = None
     supabase_jwt_secret: str | None = None
+    # When true (default outside production), accounts created through
+    # POST /auth/signup are confirmed immediately instead of waiting for the
+    # Supabase confirmation email. Set AUTO_CONFIRM_SIGNUPS=false in
+    # production to enforce real email verification.
+    auto_confirm_signups: bool = True
 
     # Database (PostgreSQL via SQLAlchemy async + asyncpg)
     # Example: postgresql+asyncpg://postgres:password@db.supabase.co:5432/postgres
@@ -37,12 +42,19 @@ class Settings(BaseSettings):
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_api_key: str | None = None
+    # Comma-separated models tried in order when the primary model is
+    # overloaded or unavailable (e.g. "gemini-3-flash-preview,gemini-3.1-flash-lite").
+    llm_fallback_models: str | None = None
 
     # Embedding provider (server-side only)
     embedding_provider: str | None = None
     embedding_model: str | None = None
     embedding_api_key: str | None = None
     embedding_dimension: int = 384
+
+    # Optional, disabled by default: exposes evidence ingestion over HTTP.
+    # Production data should be ingested through the seed command instead.
+    enable_evidence_ingest_api: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

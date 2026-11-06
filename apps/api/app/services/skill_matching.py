@@ -69,6 +69,25 @@ class SkillMatchResult:
         }
 
 
+def skill_gap_priority(status: str, importance: str) -> str:
+    """Deterministic priority label for a skill gap.
+
+    P0 — a core requirement is completely missing.
+    P1 — an important requirement is missing, or a core requirement is only
+         partially met.
+    P2 — supporting gaps and existing partial matches.
+    """
+    status = (status or "MISSING").upper()
+    importance = (importance or "SUPPORTING").upper()
+    if status == "MISSING" and importance == "CORE":
+        return "P0"
+    if (status == "MISSING" and importance == "IMPORTANT") or (
+        status == "PARTIAL" and importance == "CORE"
+    ):
+        return "P1"
+    return "P2"
+
+
 def _proficiency_score(level: str | None) -> float:
     if level is None:
         return 0.0

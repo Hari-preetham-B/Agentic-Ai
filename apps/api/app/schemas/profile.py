@@ -6,7 +6,7 @@ Naming convention:
 - *Response: response body returned to the client
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -74,8 +74,8 @@ class ProfileResponse(ProfileBase):
 
     id: UUID
     user_id: Optional[UUID] = None
-    created_at: date  # type: ignore[assignment]  # Pydantic coerces datetime
-    updated_at: date
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ class EducationResponse(EducationBase):
 
     id: UUID
     profile_id: UUID
-    created_at: date
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ class SkillResponse(SkillBase):
 
     id: UUID
     profile_id: UUID
-    created_at: date
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +201,7 @@ class ProjectResponse(ProjectBase):
 
     id: UUID
     profile_id: UUID
-    created_at: date
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ class ExperienceResponse(ExperienceBase):
 
     id: UUID
     profile_id: UUID
-    created_at: date
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +276,7 @@ class CareerGoalResponse(CareerGoalBase):
 
     id: UUID
     profile_id: UUID
-    created_at: date
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -296,8 +296,8 @@ class ProfileDetailResponse(BaseModel):
     location: Optional[str] = None
     summary: Optional[str] = None
     profile_status: str
-    created_at: date
-    updated_at: date
+    created_at: datetime
+    updated_at: datetime
 
     education: List[EducationResponse] = []
     skills: List[SkillResponse] = []

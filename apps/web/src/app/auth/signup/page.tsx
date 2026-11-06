@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { apiErrorMessage, signupAccount } from "@/lib/api/client";
 import { PageHeader } from "@/components/PageHeader";
 
 export default function SignupPage() {
@@ -10,41 +12,31 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const { signUp, isConfigured } = useAuth();
+  const { signIn, isConfigured } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: err } = await signUp(email, password);
+
+    // Create the account server-side, then sign in with the same credentials.
+    try {
+      await signupAccount(email, password);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+      setLoading(false);
+      return;
+    }
+
+    const { error: err } = await signIn(email, password);
     if (err) {
       setError(err);
       setLoading(false);
-    } else {
-      setSuccess(true);
-      setLoading(false);
+      return;
     }
+    router.push("/onboarding/start");
   };
-
-  if (success) {
-    return (
-      <div className="flex flex-col min-h-[calc(100vh-4rem)] py-10 px-6 md:px-10 lg:px-12">
-        <PageHeader
-          title="Check your email"
-          subtitle="We've sent a confirmation link. Click it to activate your account."
-        />
-        <div className="mt-10">
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center gap-2 rounded-sm border border-border-soft bg-panel px-6 py-3 font-medium text-sm transition-colors hover:bg-panel-hover"
-          >
-            Go to sign in
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] py-10 px-6 md:px-10 lg:px-12">
@@ -72,6 +64,7 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               className="rounded-sm border border-border-soft bg-background px-4 py-2 font-mono text-sm focus:border-accent outline-none transition-colors"
             />
           </label>
@@ -82,9 +75,13 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
+              autoComplete="new-password"
               className="rounded-sm border border-border-soft bg-background px-4 py-2 font-mono text-sm focus:border-accent outline-none transition-colors"
             />
+            <span className="font-mono text-[10px] text-muted-soft">
+              At least 8 characters.
+            </span>
           </label>
           {error && (
             <div className="rounded-sm border border-red/30 bg-red/10 p-6 text-red text-sm">
@@ -94,7 +91,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading || !isConfigured}
-            className="inline-flex items-center justify-center gap-2 rounded-sm border border-border-soft bg-panel px-6 py-3 font-medium text-sm transition-colors hover:bg-panel-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 rounded-sm border border-accent bg-accent px-6 py-3 font-medium text-sm text-white transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>

@@ -48,8 +48,8 @@ interface RoadmapOutput {
 }
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
-  P0: { label: "P0 — Critical", color: "text-red-400 border-red-400/20 bg-red-400/10" },
-  P1: { label: "P1 — Important", color: "text-amber-400 border-amber-400/20 bg-amber-400/10" },
+  P0: { label: "P0 — Critical", color: "text-white border-red-600 bg-red-600" },
+  P1: { label: "P1 — Important", color: "text-red-700 border-red-200 bg-red-50" },
   P2: { label: "P2 — Supporting", color: "text-muted border-muted/20 bg-muted/10" },
 };
 
@@ -184,7 +184,7 @@ export default function RoadmapPage() {
               <dt className="text-mono-xs font-medium text-muted mb-1">
                 Critical (P0)
               </dt>
-              <dd className="text-3xl font-semibold font-mono text-red-400">
+              <dd className="text-3xl font-semibold font-mono text-red-600">
                 {roadmapResult.summary.p0_count}
               </dd>
             </div>
@@ -192,7 +192,7 @@ export default function RoadmapPage() {
               <dt className="text-mono-xs font-medium text-muted mb-1">
                 Important (P1)
               </dt>
-              <dd className="text-3xl font-semibold font-mono text-amber-400">
+              <dd className="text-3xl font-semibold font-mono text-red-400">
                 {roadmapResult.summary.p1_count}
               </dd>
             </div>

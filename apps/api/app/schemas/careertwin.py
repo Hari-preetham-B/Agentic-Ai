@@ -90,10 +90,33 @@ class CareerTwinRoadmapSummary(BaseModel):
     p0_count: int = 0
     p1_count: int = 0
     p2_count: int = 0
+    completed_items: int = 0
+    progress: float = 0.0
     total_estimated_hours: float = 0.0
     status: str = "NONE"
     generated_at: str | None = None
     stale: bool = False
+
+
+class ProfileCompletenessSection(BaseModel):
+    """Completeness of one profile section."""
+
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    present: bool
+    weight: float
+
+
+class ProfileCompleteness(BaseModel):
+    """Deterministic profile completeness calculation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    score: float = 0.0
+    sections: list[ProfileCompletenessSection] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
 
 
 class CareerTwinInterviewSummary(BaseModel):
@@ -230,6 +253,11 @@ class CareerTwinState(BaseModel):
 
     # Documented skills (extracted from documents)
     documented_skills: list[CareerTwinSkill] = Field(default_factory=list)
+
+    # Deterministic profile completeness
+    profile_completeness: ProfileCompleteness = Field(
+        default_factory=ProfileCompleteness
+    )
 
     # Target careers
     target_careers: list[str] = Field(default_factory=list)

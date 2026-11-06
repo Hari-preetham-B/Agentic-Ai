@@ -21,7 +21,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth.dependency import get_current_user
+from app.core.auth.ownership import (
+    require_owned_interview_session,
+    require_owned_profile,
+)
+from app.core.auth.provider import AuthenticatedUser
 from app.core.database import get_session
+from app.services.interview_flow_service import InterviewFlowService
 from app.services.interview_service import (
     InterviewCompletionService,
     InterviewSessionService,
@@ -56,7 +63,7 @@ class InterviewSessionResponse(BaseModel):
 
 class SubmitAnswerRequest(BaseModel):
     question_id: str = Field(..., description="Question ID.")
-    answer_text: str = Field(..., description="Answer text.")
+    answer_text: str = Field(..., min_length=1, description="Answer text.")
 
 
 class SubmitAnswerResponse(BaseModel):
@@ -68,6 +75,24 @@ class SubmitAnswerResponse(BaseModel):
     feedback: str | None = None
     strengths: list[str] = Field(default_factory=list)
     weaknesses: list[str] = Field(default_factory=list)
+    difficulty: str | None = None
+    evaluator: str | None = None
+    questions_answered: int = 0
+    target_question_count: int = 0
+    session_complete: bool = False
+
+
+class NextQuestionResponse(BaseModel):
+    question_id: str | None = None
+    question_text: str | None = None
+    question_type: str | None = None
+    difficulty: str | None = None
+    target_skills: list[str] = Field(default_factory=list)
+    expected_competency: str | None = None
+    no_more_questions: bool = False
+    questions_answered: int = 0
+    target_question_count: int = 0
+    reason: str | None = None
 
 
 class InterviewResultsResponse(BaseModel):
@@ -94,7 +119,9 @@ class InterviewResultsResponse(BaseModel):
 async def create_interview(
     request: CreateInterviewSessionRequest,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
+    await require_owned_profile(session, request.profile_id, current_user.user_id)
     service = InterviewSessionService(session)
     interview_session = await service.create_session(
         profile_id=request.profile_id,
@@ -116,6 +143,34 @@ async def create_interview(
 
 
 @router.get(
+    "/interviews",
+    response_model=list[InterviewSessionResponse],
+    summary="List the current user's interview sessions",
+)
+async def list_interviews(
+    profile_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> list[InterviewSessionResponse]:
+    await require_owned_profile(session, profile_id, current_user.user_id)
+    flow = InterviewFlowService(session)
+    sessions = await flow.list_sessions(profile_id)
+    return [
+        InterviewSessionResponse(
+            session_id=str(s.id),
+            profile_id=str(s.profile_id),
+            career_id=str(s.career_id) if s.career_id else None,
+            status=s.status,
+            mode=s.mode,
+            difficulty=s.difficulty,
+            started_at=s.started_at.isoformat() if s.started_at else None,
+            completed_at=s.completed_at.isoformat() if s.completed_at else None,
+        )
+        for s in sessions
+    ]
+
+
+@router.get(
     "/interviews/{session_id}",
     response_model=InterviewSessionResponse,
     summary="Get interview session state",
@@ -123,13 +178,11 @@ async def create_interview(
 async def get_interview(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
-    service = InterviewSessionService(session)
-    interview_session = await service.get_session(session_id)
-    if interview_session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+    interview_session = await require_owned_interview_session(
+        session, session_id, current_user.user_id
+    )
     return InterviewSessionResponse(
         session_id=str(interview_session.id),
         profile_id=str(interview_session.profile_id),
@@ -150,7 +203,9 @@ async def get_interview(
 async def start_interview(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
     service = InterviewSessionService(session)
     try:
         interview_session = await service.start_session(session_id)
@@ -178,7 +233,9 @@ async def start_interview(
 async def pause_interview(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
     service = InterviewSessionService(session)
     try:
         interview_session = await service.pause_session(session_id)
@@ -206,7 +263,9 @@ async def pause_interview(
 async def resume_interview(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
     service = InterviewSessionService(session)
     try:
         interview_session = await service.resume_session(session_id)
@@ -234,7 +293,9 @@ async def resume_interview(
 async def complete_interview(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewSessionResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
     service = InterviewSessionService(session)
     try:
         interview_session = await service.complete_session(session_id)
@@ -255,6 +316,53 @@ async def complete_interview(
 
 
 @router.get(
+    "/interviews/{session_id}/next",
+    response_model=NextQuestionResponse,
+    summary="Get the next adaptive interview question",
+)
+async def get_next_question(
+    session_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> NextQuestionResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
+    flow = InterviewFlowService(session)
+    try:
+        payload = await flow.get_next_question(session_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
+    return NextQuestionResponse(**payload)
+
+
+@router.post(
+    "/interviews/{session_id}/answers",
+    response_model=SubmitAnswerResponse,
+    summary="Submit an interview answer and receive an evaluation",
+)
+async def submit_answer(
+    session_id: str,
+    request: SubmitAnswerRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> SubmitAnswerResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
+    flow = InterviewFlowService(session)
+    try:
+        payload = await flow.submit_answer(
+            session_id=session_id,
+            question_id=request.question_id,
+            answer_text=request.answer_text,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
+    return SubmitAnswerResponse(**payload)
+
+
+@router.get(
     "/interviews/{session_id}/results",
     response_model=InterviewResultsResponse,
     summary="Get interview results",
@@ -262,7 +370,9 @@ async def complete_interview(
 async def get_interview_results(
     session_id: str,
     session: AsyncSession = Depends(get_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> InterviewResultsResponse:
+    await require_owned_interview_session(session, session_id, current_user.user_id)
     service = InterviewCompletionService(session)
     try:
         summary = await service.generate_summary(session_id)
