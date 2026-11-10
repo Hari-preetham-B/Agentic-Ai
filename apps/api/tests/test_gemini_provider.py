@@ -31,6 +31,7 @@ class TestGeminiLLMProvider:
         from app.core.llm.providers.gemini import GeminiLLMProvider
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.text = "Hello, world!"
         mock_response.parsed = None
         mock_response.usage_metadata = None
@@ -60,6 +61,7 @@ class TestGeminiLLMProvider:
             score: float
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.text = '{"name": "test", "score": 0.9}'
         mock_response.parsed = TestSchema(name="test", score=0.9)
         mock_response.usage_metadata = None
@@ -90,6 +92,7 @@ class TestGeminiLLMProvider:
             score: float
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.text = "not json"
         mock_response.parsed = None
         mock_response.usage_metadata = None
@@ -118,6 +121,7 @@ class TestGeminiLLMProvider:
         mock_usage.total_token_count = 30
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.text = "Hello"
         mock_response.parsed = None
         mock_response.usage_metadata = mock_usage
@@ -185,6 +189,7 @@ class TestGeminiEmbeddingProvider:
         mock_emb.values = [0.1] * 384
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.embeddings = [mock_emb]
 
         with patch("google.genai.Client") as mock_client_cls:
@@ -209,6 +214,7 @@ class TestGeminiEmbeddingProvider:
         mock_emb2.values = [0.2] * 384
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.embeddings = [mock_emb1, mock_emb2]
 
         with patch("google.genai.Client") as mock_client_cls:
@@ -231,6 +237,7 @@ class TestGeminiEmbeddingProvider:
         mock_emb.values = [0.1] * 100  # Wrong dimension
 
         mock_response = MagicMock()
+        mock_response.model_version = None
         mock_response.embeddings = [mock_emb]
 
         with patch("google.genai.Client") as mock_client_cls:

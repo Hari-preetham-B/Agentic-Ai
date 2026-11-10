@@ -37,11 +37,31 @@ def _resolve_database_url() -> str:
     return "sqlite+aiosqlite:///:memory:?cache=shared"
 
 
+def engine_kwargs(url: str) -> dict:
+    """Engine options appropriate for the given database URL.
+
+    Supabase's transaction pooler (port 6543, PgBouncer) cannot share asyncpg
+    prepared statements between connections, which otherwise fails with
+    "prepared statement ... already exists". Statement caching is disabled and
+    prepared-statement names are made unique for such URLs.
+    """
+    kwargs: dict = {"echo": False, "pool_pre_ping": True}
+    if url.startswith("postgresql+asyncpg") and ":6543" in url:
+        from uuid import uuid4
+
+        kwargs["connect_args"] = {
+            "statement_cache_size": 0,
+            "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+        }
+    return kwargs
+
+
 def get_engine():
     """Create (once) and return the async SQLAlchemy engine."""
     global _engine
     if _engine is None:
-        _engine = create_async_engine(_resolve_database_url(), echo=False, pool_pre_ping=True)
+        url = _resolve_database_url()
+        _engine = create_async_engine(url, **engine_kwargs(url))
     return _engine
 
 

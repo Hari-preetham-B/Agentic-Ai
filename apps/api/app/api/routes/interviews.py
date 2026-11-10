@@ -14,7 +14,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -45,8 +45,8 @@ router = APIRouter(tags=["interviews"])
 class CreateInterviewSessionRequest(BaseModel):
     profile_id: str = Field(..., description="Profile ID.")
     career_id: str | None = Field(default=None)
-    mode: str = Field(default="MIXED")
-    difficulty: str = Field(default="MEDIUM")
+    mode: Literal["TECHNICAL", "BEHAVIORAL", "MIXED"] = Field(default="MIXED")
+    difficulty: Literal["EASY", "MEDIUM", "HARD", "EXPERT"] = Field(default="MEDIUM")
     target_question_count: int = Field(default=10, ge=1, le=50)
 
 

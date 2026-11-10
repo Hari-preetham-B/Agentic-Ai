@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.param_functions import Depends
 
-from app.services.profile_extractor import ProfileExtractor, profile_extractor
+from app.services.profile_extractor import ProfileExtractor, build_profile_extractor
 from app.services.resume_parser import (
     MAX_FILE_SIZE,
     ResumeParser,
@@ -23,7 +23,7 @@ def get_parser() -> ResumeParser:
 
 def get_extractor() -> ProfileExtractor:
     """Dependency provider for the profile extractor."""
-    return profile_extractor
+    return build_profile_extractor()
 
 
 @router.post(
@@ -37,7 +37,8 @@ async def extract_resume(
 ):
     """Accept a resume file, validate it, and return extracted text.
 
-    No LLM is called in this phase. Extraction is deterministic.
+    Extraction is deterministic; when an LLM provider is configured it
+    additionally structures the text (falling back to the deterministic parser).
     """
     content_type = file.content_type or ""
     data = await file.read()
@@ -76,7 +77,7 @@ async def extract_resume_draft(
     """Upload a resume and receive a structured ProfileDraft for review.
 
     The draft is not persisted. The user reviews and edits it before
-    confirmation. No LLM is called in this phase.
+    confirmation.
     """
     content_type = file.content_type or ""
     data = await file.read()

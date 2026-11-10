@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveProfile } from "@/lib/profile/context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -41,12 +42,7 @@ export default function InterviewPage() {
   const [careers, setCareers] = useState<CareerResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profileId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ct:profileId");
-    }
-    return null;
-  });
+  const { profileId } = useActiveProfile();
   const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [creating, setCreating] = useState(false);

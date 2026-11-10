@@ -44,8 +44,10 @@ async def seed_evidence() -> dict[str, int]:
             "DATABASE_URL is not configured — cannot seed evidence data"
         )
 
+    from app.core.database import engine_kwargs
+
     engine = create_async_engine(
-        settings.database_url, echo=False, pool_pre_ping=True
+        settings.database_url, **engine_kwargs(settings.database_url)
     )
     factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

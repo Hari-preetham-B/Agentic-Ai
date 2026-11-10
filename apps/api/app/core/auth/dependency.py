@@ -42,6 +42,12 @@ def get_auth_provider() -> AuthProvider:
 
             _auth_provider = SupabaseAuthProvider(
                 supabase_url=settings.supabase_url,
+                jwt_secret=getattr(settings, "supabase_jwt_secret", None),
+            )
+        elif settings.environment == "production":
+            # Never fall back to the unauthenticated fake provider in production.
+            raise RuntimeError(
+                "SUPABASE_URL must be configured when ENVIRONMENT=production."
             )
         else:
             _auth_provider = FakeAuthProvider()

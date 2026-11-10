@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveProfile } from "@/lib/profile/context";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -28,12 +29,7 @@ export default function TrustPage() {
   const [searchResults, setSearchResults] = useState<EvidenceSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  const [profileId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ct:profileId");
-    }
-    return null;
-  });
+  const { profileId } = useActiveProfile();
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();

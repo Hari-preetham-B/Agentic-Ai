@@ -15,6 +15,7 @@ Activated when :data:`app.core.settings.SUPABASE_URL` is configured.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -49,6 +50,7 @@ class SupabaseAuthProvider:
     ) -> None:
         self.supabase_url = supabase_url.rstrip("/")
         self._jwks_url = f"{self.supabase_url}/auth/v1/.well-known/jwks.json"
+        self._jwt_secret = jwt_secret or None
         self._jwks_client: PyJWKClient | None = None
         self._jwks_fetch_time: float | None = None
         # JWKS cache TTL: 5 minutes. Supabase rotates keys infrequently,
@@ -71,45 +73,30 @@ class SupabaseAuthProvider:
         if not token:
             raise ValueError("Missing authentication token.")
 
-        # Get the JWKS client. If the endpoint is unreachable, fail closed
-        # — never accept an unverified token.
         try:
-            jwks_client = self._get_jwks_client()
-        except Exception:
-            raise ValueError("Unable to reach JWKS endpoint.")
+            header = jwt.get_unverified_header(token)
+        except jwt.InvalidTokenError as exc:
+            raise ValueError(f"Invalid token: {exc}") from exc
 
-        # Get the signing key for this token's key ID. If the key is
-        # not found (e.g. key rotation), refresh the JWKS cache and try once
-        # more.
-        try:
-            signing_key = jwks_client.get_signing_key_from_jwt(token)
-        except Exception:
-            # Refresh the JWKS cache and retry once with a fresh client.
-            self._jwks_client = None
-            self._jwks_fetch_time = None
-            jwks_client = self._get_jwks_client()
-            try:
-                signing_key = jwks_client.get_signing_key_from_jwt(token)
-            except Exception as exc:
+        token_alg = header.get("alg")
+        if token_alg == "HS256":
+            # Legacy Supabase projects sign access tokens with a shared secret.
+            # Verified only when SUPABASE_JWT_SECRET is configured; the key
+            # type (secret vs. public key) is never taken from the token.
+            if not self._jwt_secret:
                 raise ValueError(
-                    "Invalid token: unable to find signing key."
-                ) from exc
-
-        # Supabase projects sign access tokens with either a legacy shared
-        # secret (HS256) or an asymmetric signing key (ES256/RS256). Only the
-        # asymmetric algorithms can be verified from the project JWKS, so the
-        # algorithm is taken from the matching published key and checked
-        # against an allowlist — never from the token header alone.
-        algorithm = getattr(signing_key, "algorithm_name", None)
-        if algorithm not in _ALLOWED_ALGORITHMS:
-            raise ValueError(
-                f"Unsupported token signing algorithm: {algorithm or 'unknown'}"
-            )
+                    "Token uses the legacy HS256 signing key but "
+                    "SUPABASE_JWT_SECRET is not configured on the server."
+                )
+            verify_key: Any = self._jwt_secret
+            algorithm = "HS256"
+        else:
+            verify_key, algorithm = await self._resolve_jwks_key(token)
 
         try:
             payload = jwt.decode(
                 token,
-                signing_key.key,
+                verify_key,
                 algorithms=[algorithm],
                 audience="authenticated",
                 issuer=f"{self.supabase_url}/auth/v1",
@@ -140,6 +127,41 @@ class SupabaseAuthProvider:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _resolve_jwks_key(self, token: str) -> tuple[Any, str]:
+        """Return ``(public_key, algorithm)`` for an asymmetrically signed token.
+
+        The JWKS client does blocking network I/O, so it runs in a worker
+        thread. The algorithm comes from the matching published key and is
+        checked against an allowlist.
+        """
+        try:
+            jwks_client = self._get_jwks_client()
+        except Exception:
+            raise ValueError("Unable to reach JWKS endpoint.")
+
+        try:
+            signing_key = await asyncio.to_thread(
+                jwks_client.get_signing_key_from_jwt, token
+            )
+        except Exception:
+            # Key rotation or stale cache: refresh once with a fresh client.
+            self._jwks_client = None
+            self._jwks_fetch_time = None
+            try:
+                jwks_client = self._get_jwks_client()
+                signing_key = await asyncio.to_thread(
+                    jwks_client.get_signing_key_from_jwt, token
+                )
+            except Exception as exc:
+                raise ValueError("Invalid token: unable to find signing key.") from exc
+
+        algorithm = getattr(signing_key, "algorithm_name", None)
+        if algorithm not in _ALLOWED_ALGORITHMS:
+            raise ValueError(
+                f"Unsupported token signing algorithm: {algorithm or 'unknown'}"
+            )
+        return signing_key.key, algorithm
 
     def _get_jwks_client(self) -> PyJWKClient:
         """Return the JWKS client, refreshing the cache if expired."""

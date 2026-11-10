@@ -10,6 +10,7 @@ routing and run lifecycle.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -67,6 +68,27 @@ CAPABILITY_TO_AGENT: dict[str, str] = {
     "learning_roadmap": "learning_agent",
     "careertwin_analysis": "careertwin_agent",
 }
+
+
+_SLUG_TOKEN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)+")
+
+
+def extract_career_slug(user_input: str | None) -> str:
+    """Return a career slug from free-form agent input.
+
+    Accepts a bare slug (``machine-learning-engineer``), ``career_slug=<slug>``
+    or a sentence that contains a slug. Returns an empty string when none is
+    found so callers can fail with a clear message.
+    """
+    text = (user_input or "").strip().lower()
+    if not text:
+        return ""
+    if text.startswith("career_slug="):
+        text = text.split("=", 1)[1].strip()
+    if _SLUG_TOKEN.fullmatch(text):
+        return text
+    matches = _SLUG_TOKEN.findall(text)
+    return matches[-1] if matches else text
 
 
 class AgentOrchestrator:
@@ -145,6 +167,7 @@ class AgentOrchestrator:
         # Register evidence tools for evidence-related capabilities.
         if self.session is not None and capability in (
             "evidence_verification",
+            "evidence_check",
         ):
             tool_registry.register(build_get_evidence_tool(self.session))
             tool_registry.register(build_search_evidence_tool(self.session))
@@ -152,7 +175,7 @@ class AgentOrchestrator:
             tool_registry.register(build_get_claim_evidence_tool(self.session))
 
         # Register learning tools for learning_roadmap capability.
-        if self.session is not None and capability == "learning_roadmap":
+        if self.session is not None and capability in ("learning_roadmap", "learning_plan"):
             tool_registry.register(build_get_learning_resources_tool(self.session))
             tool_registry.register(build_get_skill_dependencies_tool(self.session))
             tool_registry.register(build_generate_learning_roadmap_tool(self.session))
@@ -197,21 +220,22 @@ class AgentOrchestrator:
             if profile_id:
                 context["profile_id"] = profile_id
             if capability in ("career_analysis", "skill_gap"):
-                context["career_slug"] = user_input or context.get(
-                    "career_slug", ""
-                )
+                context["career_slug"] = extract_career_slug(user_input)
             elif capability == "career_recommendations":
                 context["profile_id"] = profile_id
-            elif capability == "evidence_verification":
+            elif capability in ("evidence_verification", "evidence_check"):
                 context["profile_id"] = profile_id
                 context["input_text"] = user_input
-            elif capability == "learning_roadmap":
+            elif capability in ("learning_roadmap", "learning_plan"):
                 context["profile_id"] = profile_id
-                context["career_slug"] = user_input
+                context["career_slug"] = extract_career_slug(user_input)
                 context["profile_skills"] = []
             elif capability == "interview":
                 context["profile_id"] = profile_id
                 context["capability"] = user_input or "create_session"
+                if context["capability"] == "create_session":
+                    # Default tool input so the Interview Agent can open a session.
+                    context["tool_input"] = {"profile_id": profile_id}
             elif capability == "careertwin_analysis":
                 context["profile_id"] = profile_id
                 context["active_target_career"] = user_input

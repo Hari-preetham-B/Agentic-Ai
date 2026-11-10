@@ -13,6 +13,7 @@ import {
   type ResumeExtractResponse,
   apiErrorMessage,
 } from "@/lib/api/client";
+import { notifyProfilesUpdated } from "@/lib/profile/context";
 import { Section } from "@/components/Section";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PageHeader } from "@/components/PageHeader";
@@ -71,27 +72,43 @@ export default function OnboardingResumePage() {
   const handleSaveDraft = useCallback(async () => {
     if (!draft) return;
     setProcessing(true);
+    setUploadError(null);
     try {
-      const created = await createProfile(draft.profile);
-      setProfileId(created.id);
-      localStorage.setItem("ct:profileId", created.id);
+      // Reuse the profile from a previous failed attempt instead of creating
+      // a duplicate on retry.
+      let id = profileId;
+      if (!id) {
+        const created = await createProfile(draft.profile);
+        id = created.id;
+        setProfileId(id);
+        localStorage.setItem("ct:profileId", id);
+      }
+      const targetId = id;
 
-      // Persist extracted children.
-      await Promise.all([
-        ...draft.education.map((e) => addChild(created.id, "education", e)),
-        ...draft.skills.map((s) => addChild(created.id, "skills", s)),
-        ...draft.projects.map((p) => addChild(created.id, "projects", p)),
-        ...draft.experience.map((x) => addChild(created.id, "experience", x)),
-        ...draft.career_goals.map((g) => addChild(created.id, "career-goals", g)),
-      ]);
-
+      // Persist extracted children; collect failures rather than aborting.
+      const jobs: Array<[string, Promise<unknown>]> = [
+        ...draft.education.map((e): [string, Promise<unknown>] => ["education", addChild(targetId, "education", e)]),
+        ...draft.skills.map((s): [string, Promise<unknown>] => ["skill", addChild(targetId, "skills", s)]),
+        ...draft.projects.map((p): [string, Promise<unknown>] => ["project", addChild(targetId, "projects", p)]),
+        ...draft.experience.map((x): [string, Promise<unknown>] => ["experience", addChild(targetId, "experience", x)]),
+        ...draft.career_goals.map((g): [string, Promise<unknown>] => ["career goal", addChild(targetId, "career-goals", g)]),
+      ];
+      const results = await Promise.allSettled(jobs.map(([, job]) => job));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        setUploadError(
+          `${failed} of ${jobs.length} extracted items could not be saved. ` +
+            "Your profile was created; add the missing items on the next screen.",
+        );
+      }
+      notifyProfilesUpdated();
       setStep("created");
     } catch (err) {
       setUploadError(apiErrorMessage(err) || "Failed to save draft profile.");
     } finally {
       setProcessing(false);
     }
-  }, [draft]);
+  }, [draft, profileId]);
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] py-10 px-6 md:px-10 lg:px-12">
@@ -100,7 +117,7 @@ export default function OnboardingResumePage() {
       </div>
       <PageHeader
         title="Upload your resume"
-        subtitle="We extract the text from your resume and present a structured draft for you to review and edit before confirming. No AI agent runs here — extraction is deterministic."
+        subtitle="We read your resume and present a structured draft for you to review and edit before confirming. Nothing is saved as confirmed until you approve it, and skill levels are left for you to set."
       />
 
       {step === "select" && (

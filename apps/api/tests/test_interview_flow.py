@@ -146,7 +146,7 @@ async def test_adaptive_interview_flow(client: AsyncClient) -> None:
         )
         assert answer.status_code == 200, answer.text
         body = answer.json()
-        assert body["evaluation_status"] == "COMPLETED"
+        assert body["evaluation_status"] == "EVALUATED"
         assert body["score"] is not None and body["score"] > 0
         assert body["evaluator"] in (
             "deterministic_heuristic",

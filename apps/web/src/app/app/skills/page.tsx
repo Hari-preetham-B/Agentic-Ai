@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveProfile } from "@/lib/profile/context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -26,12 +27,7 @@ export default function SkillsPage() {
   const [careers, setCareers] = useState<CareerResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profileId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ct:profileId");
-    }
-    return null;
-  });
+  const { profileId } = useActiveProfile();
   const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
   const [gapLoading, setGapLoading] = useState(false);
   const [gapResult, setGapResult] = useState<SkillGapAnalysisOutput | null>(
@@ -69,7 +65,7 @@ export default function SkillsPage() {
       const result = await runAgentCapability({
         profile_id: profileId,
         capability: "skill_gap",
-        input: `Analyze my skill gaps for ${slug}.`,
+        input: slug,
       });
       if (result.status === "COMPLETED" && result.result) {
         setGapResult(result.result as unknown as SkillGapAnalysisOutput);

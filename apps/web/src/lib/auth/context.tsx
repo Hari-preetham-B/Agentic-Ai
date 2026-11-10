@@ -60,22 +60,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isConfigured = isSupabaseConfigured();
   const devFallback =
     !isConfigured && process.env.NODE_ENV !== "production";
-  const [user, setUser] = useState<User | null>(null);
+  // In development without Supabase, the local fake identity is created up
+  // front (not inside an effect) so child effects never run before the token
+  // is set. The token is a constant and the fallback is disabled in
+  // production builds.
+  const [user, setUser] = useState<User | null>(() => {
+    if (devFallback) {
+      setAuthToken(DEV_TOKEN);
+      return makeDevUser();
+    }
+    return null;
+  });
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!devFallback);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      if (devFallback) {
-        setUser(makeDevUser());
-        setAuthToken(DEV_TOKEN);
-        setLoading(false);
-      }
+      // Nothing to subscribe to. Without a dev fallback (production without
+      // Supabase configured) the user simply stays signed out.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
       return;
     }
 
-    const active = true;
+    let active = true;
     supabase.auth
       .getSession()
       .then(({ data: { session: s } }) => {
@@ -97,9 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
-  }, [devFallback]);
+  }, []);
 
   const signUp = useCallback(
     async (email: string, password: string) => {

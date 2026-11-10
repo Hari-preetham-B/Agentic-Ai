@@ -51,8 +51,8 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${_authToken}`;
   }
   const res = await fetch(input, {
-    headers,
     ...init,
+    headers,
   });
 
   if (!res.ok) {
@@ -78,6 +78,17 @@ function extractErrorMessage(body: unknown, status: number): string {
   if (typeof body === "string" && body.trim()) return body;
   if (body && typeof body === "object") {
     const record = body as Record<string, unknown>;
+    // Backend structured errors: { error: { code, message } }
+    const structured = record.error;
+    if (structured && typeof structured === "object") {
+      const msg = (structured as Record<string, unknown>).message;
+      if (typeof msg === "string" && msg) return msg;
+    }
+    // FastAPI validation errors: { detail: [{ msg, loc }] }
+    if (Array.isArray(record.detail) && record.detail.length > 0) {
+      const first = record.detail[0] as Record<string, unknown>;
+      if (typeof first?.msg === "string") return first.msg;
+    }
     const detail = record.detail;
     if (typeof detail === "string") return detail;
     if (detail && typeof detail === "object") {

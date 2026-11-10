@@ -27,3 +27,14 @@ async def health() -> dict:
             "embeddings": "configured" if getattr(settings, "embedding_api_key", None) or settings.embedding_provider == "fake" else "unconfigured",
         },
     }
+
+
+@router.get("/health/diagnostics", summary="Configuration diagnostics")
+async def diagnostics() -> dict:
+    """Report how the API is configured and which setup steps are missing.
+
+    Never returns secrets. Use this first when the app misbehaves.
+    """
+    from app.core.diagnostics import collect_diagnostics
+
+    return await collect_diagnostics()

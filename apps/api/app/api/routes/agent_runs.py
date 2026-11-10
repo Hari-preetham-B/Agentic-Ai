@@ -49,11 +49,22 @@ def _create_orchestrator_llm_provider():
 def get_orchestrator(
     session: AsyncSession = Depends(get_session),
 ) -> AgentOrchestrator:
+    # One TraceService instance is shared by the orchestrator and the workflow
+    # so event sequence numbers stay strictly ordered within a run.
+    trace_service = TraceService(session)
+    llm_provider = _create_orchestrator_llm_provider()
     return AgentOrchestrator(
         session=session,
-        trace_service=TraceService(session),
-        llm_provider=_create_orchestrator_llm_provider(),
-        workflow=AgentWorkflow(),
+        trace_service=trace_service,
+        llm_provider=llm_provider,
+        workflow=AgentWorkflow(
+            trace_service=trace_service,
+            session=session,
+            llm_provider=llm_provider,
+            # Evidence embeddings stay on the same (deterministic) provider the
+            # evidence routes and seed script use, so query and stored vectors
+            # always share one vector space.
+        ),
     )
 
 

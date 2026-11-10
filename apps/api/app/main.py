@@ -26,8 +26,8 @@ configure_logging()
 app = FastAPI(
     title="CareerTwin API",
     description=(
-        "Career intelligence backend — foundation stage. Profile and onboarding "
-        "capability implemented. No AI agents implemented yet."
+        "CareerTwin backend: profiles, career intelligence, learning roadmaps, "
+        "adaptive interviews, evidence verification and agent orchestration."
     ),
     version="0.1.0",
     docs_url="/docs",
@@ -37,9 +37,9 @@ app = FastAPI(
 
 # CORS configuration
 settings = get_settings()
-allowed_origins = ["http://localhost:3000"]
-if settings.environment == "production":
-    allowed_origins = [o for o in allowed_origins if o]
+allowed_origins = [
+    o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,6 +73,23 @@ async def root() -> dict:
         "docs": "/docs",
         "health": "/health",
     }
+
+
+@app.on_event("startup")
+async def log_startup_diagnostics() -> None:
+    """Log configuration problems that otherwise surface as opaque 500s."""
+    import logging
+
+    from app.core.diagnostics import collect_diagnostics
+
+    log = logging.getLogger("careertwin.startup")
+    info = await collect_diagnostics()
+    log.info(
+        "CareerTwin API | env=%s auth=%s db=%s llm=%s",
+        info["environment"], info["auth_mode"], info["database"]["status"], info["llm"]["mode"],
+    )
+    for hint in info["problems"]:
+        log.warning("SETUP PROBLEM: %s", hint)
 
 
 @app.on_event("shutdown")

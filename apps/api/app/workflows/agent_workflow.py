@@ -39,9 +39,15 @@ class AgentWorkflow:
         self,
         state_schema: type[AgentState] = AgentState,
         trace_service: TraceService | None = None,
+        session: Any = None,
+        llm_provider: Any = None,
+        embedding_provider: Any = None,
     ) -> None:
         self.state_schema = state_schema
         self.trace = trace_service
+        self.session = session
+        self.llm_provider = llm_provider
+        self.embedding_provider = embedding_provider
         self.graph = self._build()
         self._current_run_id: str | None = None
 
@@ -60,7 +66,13 @@ class AgentWorkflow:
                 "end": END,
             },
         )
-        builder.add_edge("tool_node", "agent_node")
+        # A failed tool must end the run; otherwise the agent re-requests the
+        # same tool until LangGraph's recursion limit is hit.
+        builder.add_conditional_edges(
+            "tool_node",
+            lambda state: "end" if state.status == "FAILED" else "agent",
+            {"agent": "agent_node", "end": END},
+        )
 
         return builder.compile()
 
@@ -85,14 +97,32 @@ class AgentWorkflow:
         from app.agents.interview_agents import InterviewAgent
         from app.agents.learning_agents import LearningAgent
 
+        import inspect
+
+        shared = {
+            "session": self.session,
+            "llm_provider": self.llm_provider,
+            "embedding_provider": self.embedding_provider,
+            "trace_service": self.trace,
+        }
+
+        def build(agent_cls: Any) -> Any:
+            # Pass only the dependencies each agent constructor accepts, and
+            # only when we actually have them (agents default to fakes).
+            accepted = inspect.signature(agent_cls.__init__).parameters
+            kwargs = {
+                k: v for k, v in shared.items() if k in accepted and v is not None
+            }
+            return agent_cls(**kwargs)
+
         agent_map = {
-            "profile_agent": ProfileAgent(),
-            "career_agent": CareerAgent(),
-            "skill_gap_agent": SkillGapAgent(),
-            "learning_agent": LearningAgent(),
-            "interview_agent": InterviewAgent(),
-            "evidence_agent": EvidenceAgent(),
-            "careertwin_agent": CareerTwinAgent(),
+            "profile_agent": build(ProfileAgent),
+            "career_agent": build(CareerAgent),
+            "skill_gap_agent": build(SkillGapAgent),
+            "learning_agent": build(LearningAgent),
+            "interview_agent": build(InterviewAgent),
+            "evidence_agent": build(EvidenceAgent),
+            "careertwin_agent": build(CareerTwinAgent),
         }
 
         agent_name = state.current_agent or "profile_agent"
@@ -102,15 +132,9 @@ class AgentWorkflow:
             state.status = "FAILED"
             return {"status": state.status, "errors": state.errors}
 
-        # Emit AGENT_STARTED via the trace service if available.
+        # AGENT_STARTED is emitted once by the orchestrator (the run boundary);
+        # emitting it here would repeat it on every tool round-trip.
         run_id = self._current_run_id
-        if self.trace is not None and run_id:
-            await self.trace.emit(
-                run_id=uuid.UUID(run_id),
-                event_type=self.trace.EVENT_AGENT_STARTED,
-                agent_name=agent_name,
-                message=f"Agent '{agent_name}' started.",
-            )
 
         result = await agent.run(state)
 

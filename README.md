@@ -1,145 +1,105 @@
 # CareerTwin
 
-![CareerTwin Banner](https://img.shields.io/badge/CareerTwin-AI%20Powered-1a73e8?style=for-the-badge)
+CareerTwin is an agentic career-intelligence and evidence-aware assistant for students. It builds a structured
+profile (the **CareerTwin**), matches it against curated careers with deterministic scoring, generates a
+prerequisite-ordered learning roadmap, runs adaptive mock interviews, and shows how trustworthy each AI-generated
+claim is (SUPPORTED / INFERRED / UNCERTAIN / CONTRADICTED) with inspectable evidence and persisted agent traces.
 
-CareerTwin is an AI-powered career intelligence system for students. It maintains an evolving structured representation of a student's professional state called the **CareerTwin**.
+| Layer | Technology |
+|---|---|
+| Web (`apps/web`, port 3000) | Next.js 16, React 19, TypeScript, Tailwind, Framer Motion |
+| API (`apps/api`, port 8000) | FastAPI, Pydantic, SQLAlchemy 2 (async), Alembic |
+| Data / auth | Supabase PostgreSQL + pgvector, Supabase Auth (JWT) |
+| Agents | Seven agents on LangGraph with a custom orchestrator and typed tools |
+| AI | Gemini when configured, deterministic fake providers otherwise |
 
-<div align="center">
-  <a href="https://img.shields.io/github/stars/Hari-preetham-B/Agentic-Ai?style=social" target="_blank">
-    <img src="https://img.shields.io/github/stars/Hari-preetham-B/Agentic-Ai?style=social" alt="Star">
-  </a>
-  <a href="https://img.shields.io/github/forks/Hari-preetham-B/Agentic-Ai?style=social" target="_blank">
-    <img src="https://img.shields.io/github/forks/Hari-preetham-B/Agentic-Ai?style=social" alt="Fork">
-  </a>
-</div>
+## Quick start
 
-## 🏗️ Architecture Overview
+Prerequisites: Python 3.11+, Node 20+, a Supabase project (or any PostgreSQL with the `vector` extension).
 
-```mermaid
-graph TD
-    A[Browser] -->|HTTP Request| B[Next.js Frontend]
-    B -->|API Calls| C[FastAPI Backend]
-    C -->|Workflow Orchestration| D[LangGraph]
-    D -->|Specialized Agents| E[Service Layer]
-    E -->|Database Operations| F[Supabase PostgreSQL]
-    E -->|Vector Search| G[pgvector]
-    E -->|File Storage| H[Supabase Storage]
+### 1. Configure
 
-    style A fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style B fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style C fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style D fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-    style E fill:#e0f7fa,.stroke:#00bcd4,stroke-width:2px
-    style F fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style G fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style H fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-```
+Copy `.env.example` to `.env` in the repository root and fill it in. **One root file configures both apps.**
 
-```mermaid
-graph LR
-    A[Resume Upload] --> B[Text Extraction]
-    B --> C[Data Parsing]
-    C --> D[Profile Creation]
-    D --> E[Confirmation Workflow]
-    E --> F[CareerTwin State]
+* Supabase -> Project Settings -> API: `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_URL` (same value),
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`.
+* Supabase -> Connect: copy the **Session pooler** connection string into `DATABASE_URL`, change the scheme to
+  `postgresql+asyncpg://`, and URL-encode special characters in the password. (The "direct" host is IPv6-only on many
+  plans and fails on home networks.)
+* `LLM_API_KEY` for Gemini is optional. Without it the app runs on the deterministic fallback provider.
+* In Supabase -> Database -> Extensions, make sure `vector` is enabled.
 
-    style A fill:#fffde7,stroke:#f57f17,stroke-width:2px
-    style B fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style C fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style D fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style F fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-```
-
-## ✨ Features
-
-| Feature | Status |
-| ------- | ------ |
-| Repository structure | ✅ |
-| Frontend shell (Next.js + Tailwind + Motion) | ✅ |
-| Backend shell (FastAPI + Pydantic Settings) | ✅ |
-| Shared package (contract boundary) | ✅ |
-| Source-of-truth docs | ✅ |
-| `/health` endpoint | ✅ |
-| PostgreSQL/Supabase + SQLAlchemy + Alembic | ✅ |
-| Profile CRUD + validation + confirmation | ✅ |
-| Resume upload (PDF/DOCX/TXT) + draft | ✅ |
-| Onboarding flow + `/app/twin` | ✅ |
-| Authentication | 🚧 Later phase |
-| AI agents | 🚧 Later phase |
-| RAG / pgvector | 🚧 Later phase |
-| Resume semantic extraction | 🚧 Later phase |
-
-## 📊 Current Implementation Status
-
-<div align="center">
-  <img src="https://img.shields.io/badge/Repository-✅%20Structured-blue" alt="Repository">
-  <img src="https://img.shields.io/badge/Frontend-✅%20Next.js%20%2B%20Tailwind-green" alt="Frontend">
-  <img src="https://img.shields.io/badge/Backend-✅%20FastAPI-orange" alt="Backend">
-  <img src="https://img.shields.io/badge/Database-✅%20PostgreSQL-lightgrey" alt="Database">
-</div>
-
-## 🚀 Quick Start
-
-### Frontend
-
-```bash
-cd apps/web
-npm install
-npm run dev        # http://localhost:3000
-```
-
-### Backend
+### 2. Backend
 
 ```bash
 cd apps/api
 python -m venv .venv
-# Windows: .venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-pip install -e .
-cp .env.example .env
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Windows: .venv\Scripts\activate      macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]"
+python -m app.scripts.setup_database     # migrations + reference data + evidence corpus (safe to re-run)
+uvicorn app.main:app --reload --port 8000
 ```
 
-### Health Check
+Open <http://localhost:8000/health/diagnostics>. It lists exactly what is missing (database, migrations, seeds, auth
+mode, LLM mode) and never prints secrets. `/docs` shows the interactive API.
+
+### 3. Frontend
 
 ```bash
-curl http://localhost:8000/health
+cd apps/web
+npm install
+npm run dev
 ```
 
-## 🌐 Repository Structure
+Open <http://localhost:3000>. Sign up, choose manual entry or resume upload (PDF, DOCX, TXT), review and confirm
+the profile, and the Twin, Careers, Skills, Roadmap, Interview and Trust pages become available.
 
-```text
-├── apps/
-│   ├── web/              # Next.js frontend (port 3000)
-│   └── api/              # FastAPI backend (port 8000)
-├── packages/
-│   └── shared/           # Shared frontend/backend contracts
-├── docs/                 # Source-of-truth specifications
-├── .github/workflows/    # CI
-├── .env.example          # Root environment template
-├── .gitignore
-└── README.md
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Every API call returns **401** | `SUPABASE_URL` differs from the web app's project, or the token is legacy HS256: set `SUPABASE_JWT_SECRET`. If you have no Supabase configured at all, leave all Supabase variables empty (development fake auth) and make sure `ENVIRONMENT` is not `production`. |
+| Pages fail with **500 / "no such table"** | `DATABASE_URL` is not loaded and the API is using an empty in-memory database. Check `/health/diagnostics`, then run `python -m app.scripts.setup_database`. |
+| Careers list is empty | Reference data is not seeded: run the setup command above. |
+| "Cannot connect to the database" | Wrong host or password, or the direct Supabase host on an IPv4-only network. Use the Session pooler string. |
+| `prepared statement ... already exists` | You used the transaction pooler (port 6543). The API handles this; for migrations prefer port 5432. |
+| Browser CORS error | Open the app at `localhost:3000` or add your origin to `CORS_ORIGINS`. |
+| Sign-up works but you cannot sign in | Email confirmation is on and `SUPABASE_SECRET_KEY` is missing. Set it (with `AUTO_CONFIRM_SIGNUPS=true`) or confirm the email. |
+| `next build` fails fetching fonts | The build downloads Google Fonts; it needs internet access. |
+| Gemini calls fail | Check `LLM_API_KEY` and `LLM_MODEL` (set `LLM_FALLBACK_MODELS`). Agents fall back to deterministic output, and the interview evaluator reports which evaluator was used. |
+
+## Testing
+
+```bash
+cd apps/api && python -m pytest          # 188 pass; 32 skip (live Supabase/Gemini smoke tests)
+cd apps/web && npx tsc --noEmit && npx eslint && npm run build
 ```
 
-## 🛠️ Technology Stack
+Tests run on SQLite and use no external services. Live smoke tests run only when their credentials are present.
 
-- **Frontend:** Next.js, React, TypeScript, Tailwind CSS, Motion
-- **Backend:** FastAPI, Pydantic, Pydantic Settings, pytest
-- **Database (planned):** Supabase, PostgreSQL, pgvector
-- **Authentication (planned):** Supabase Auth + PostgreSQL RLS
-- **Workflow Engine (planned):** LangGraph
+## How it works
 
-## 📈 Roadmap
+* **Deterministic first.** Skill matching, career fit, roadmap sequencing (dependency graph, cycle detection,
+  topological order), interview difficulty (>= 0.80 up, <= 0.45 down), and claim confidence are plain code. LLMs never
+  set scores or confidence.
+* **Confidence** = `quality*0.20 + agreement*0.25 + directness*0.45 + freshness*0.10 - max(contradiction)*0.35`,
+  clamped to [0, 1]. Thresholds: SUPPORTED >= 0.70, INFERRED >= 0.40, UNCERTAIN >= 0.10, otherwise CONTRADICTED.
+* **Agents** (Profile, Career, Skill Gap, Learning, Interview, Evidence, CareerTwin) run only when a capability needs
+  them. Every run persists `RUN_STARTED`, `TOOL_STARTED/COMPLETED`, `AGENT_*` and `RUN_*` events, which the Twin page
+  shows. Chain-of-thought is never stored.
+* **Resume onboarding** parses text deterministically into a draft you review. With a Gemini key the model also
+  structures it, and every item is validated; any failure falls back to the deterministic parser. Skill levels are
+  never guessed.
+* **Ownership.** Every user-owned route checks the authenticated user. The API connects as the database owner role,
+  which bypasses Postgres RLS, so application-level checks are what protect data. RLS policies exist as defence in
+  depth only.
 
-See `docs/DEVELOPMENT_PLAN.md` for the planned implementation phases and future enhancements including AI agents, RAG, and semantic resume extraction.
+## Known limitations
 
-## 🔒 Security
-
-No real secrets are committed. Never commit `.env` files or provider keys. Use `.env.example` as a template and fill in values securely.
-
----
-
-<div align="center">
-  <sub>Built with ❤️ for career intelligence</sub>
-</div>
+* Evidence retrieval uses the deterministic fallback embedder end to end (seed script, search, and agent). Gemini
+  embeddings are configurable but not wired into evidence retrieval; enabling them requires re-embedding the corpus.
+* No OCR: scanned or image-only resumes cannot be read.
+* The default `gemini-3.8-flash` model name is configurable and has not been verified against a live key.
+  Set `LLM_MODEL` / `LLM_FALLBACK_MODELS` to models available to your key.
+* The web UI has been type-checked, linted and production-built, and its API contracts checked against live
+  responses, but it has not been exercised in a real browser session.

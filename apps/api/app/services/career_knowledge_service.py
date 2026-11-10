@@ -22,19 +22,36 @@ class CareerKnowledgeService:
         self.repo = CareerRepository(session)
 
     async def list_careers(self) -> list[dict]:
-        """Return all careers as lightweight dicts."""
+        """Return all careers with their skills (tools/projects/sources omitted).
+
+        Skills are included so list views can show each role's core skills
+        without an extra request per career.
+        """
         careers = await self.repo.list_careers()
-        return [
-            {
-                "id": str(c.id),
-                "slug": c.slug,
-                "title": c.title,
-                "domain": c.domain,
-                "summary": c.summary,
-                "description": c.description,
-            }
-            for c in careers
-        ]
+        result: list[dict] = []
+        for c in careers:
+            skills = await self.repo.get_skills(c.id)
+            result.append(
+                {
+                    "id": str(c.id),
+                    "slug": c.slug,
+                    "title": c.title,
+                    "domain": c.domain,
+                    "summary": c.summary,
+                    "description": c.description,
+                    "skills": [
+                        {
+                            "skill_name": s.skill_name,
+                            "category": s.category,
+                            "importance": s.importance,
+                            "minimum_level": s.minimum_level,
+                            "description": s.description,
+                        }
+                        for s in skills
+                    ],
+                }
+            )
+        return result
 
     async def get_career(self, slug: str) -> dict | None:
         """Return a career with its skills, tools, projects, and sources."""

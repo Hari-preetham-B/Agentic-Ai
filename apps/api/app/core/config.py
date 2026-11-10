@@ -6,8 +6,17 @@ development without production credentials configured.
 """
 
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env files are located relative to this file (not the working directory), so
+# the API finds its settings no matter where it is started from. Values in
+# apps/api/.env override the repository-root .env.
+_API_DIR = Path(__file__).resolve().parents[2]
+_REPO_DIR = _API_DIR.parents[1]
+_ENV_FILES = (str(_REPO_DIR / ".env"), str(_API_DIR / ".env"))
 
 
 class Settings(BaseSettings):
@@ -26,13 +35,20 @@ class Settings(BaseSettings):
     # Supabase (server-side only)
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
-    supabase_secret_key: str | None = None
+    # SUPABASE_SERVICE_ROLE_KEY is accepted as an alias (older docs used it).
+    supabase_secret_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
+    )
     supabase_jwt_secret: str | None = None
     # When true (default outside production), accounts created through
     # POST /auth/signup are confirmed immediately instead of waiting for the
     # Supabase confirmation email. Set AUTO_CONFIRM_SIGNUPS=false in
     # production to enforce real email verification.
     auto_confirm_signups: bool = True
+
+    # Comma-separated browser origins allowed to call the API (CORS).
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Database (PostgreSQL via SQLAlchemy async + asyncpg)
     # Example: postgresql+asyncpg://postgres:password@db.supabase.co:5432/postgres
@@ -57,10 +73,11 @@ class Settings(BaseSettings):
     enable_evidence_ingest_api: bool = False
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
 

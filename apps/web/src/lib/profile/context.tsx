@@ -104,10 +104,12 @@ export function ActiveProfileProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    // Kick off the first profile load without touching state synchronously.
-    load();
-  }, [authLoading, user]);
+    if (authLoading) return;
+    // Initial/refresh load when the signed-in user changes. `load` resolves
+    // the signed-out case too, so the context never stays in a loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [authLoading, load]);
 
   useEffect(() => {
     const handler = () => void load();

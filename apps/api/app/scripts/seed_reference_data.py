@@ -443,7 +443,9 @@ async def seed_reference_data() -> dict[str, int]:
     if not database_url:
         raise RuntimeError("DATABASE_URL is not configured — cannot seed reference data")
 
-    engine = create_async_engine(database_url, echo=False, pool_pre_ping=True)
+    from app.core.database import engine_kwargs
+
+    engine = create_async_engine(database_url, **engine_kwargs(database_url))
     factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     counts: dict[str, int] = {}

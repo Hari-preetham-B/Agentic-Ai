@@ -1,16 +1,18 @@
 "use client";
 
+import { useActiveProfile } from "@/lib/profile/context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   listCareers,
   type CareerResponse,
   runAgentCapability,
+  updateRoadmapItemProgress,
 } from "@/lib/api/client";
 import { PageHeader } from "@/components/PageHeader";
 
 interface RoadmapItem {
-  id: string;
+  id?: string;
   skill_name: string;
   priority: string;
   sequence_order: number;
@@ -57,16 +59,13 @@ export default function RoadmapPage() {
   const [careers, setCareers] = useState<CareerResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profileId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ct:profileId");
-    }
-    return null;
-  });
+  const { profileId } = useActiveProfile();
   const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [roadmapResult, setRoadmapResult] = useState<RoadmapOutput | null>(null);
   const [roadmapError, setRoadmapError] = useState<string | null>(null);
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +84,32 @@ export default function RoadmapPage() {
       cancelled = true;
     };
   }, []);
+
+  async function setItemStatus(
+    itemId: string,
+    status: "PENDING" | "IN_PROGRESS" | "COMPLETED",
+  ) {
+    if (!roadmapResult) return;
+    setBusyItemId(itemId);
+    setProgressError(null);
+    try {
+      await updateRoadmapItemProgress(roadmapResult.roadmap_id, itemId, status);
+      setRoadmapResult((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((it) =>
+                it.id === itemId ? { ...it, status } : it,
+              ),
+            }
+          : current,
+      );
+    } catch (err: unknown) {
+      setProgressError((err as Error).message || "Could not update progress.");
+    } finally {
+      setBusyItemId(null);
+    }
+  }
 
   async function generateRoadmap(slug: string) {
     if (!profileId) {
@@ -215,11 +240,17 @@ export default function RoadmapPage() {
           </div>
         </div>
 
+        {progressError && (
+          <div className="mb-6 rounded-sm border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {progressError}
+          </div>
+        )}
+
         <div className="relative mb-10">
           {roadmapResult.items.map((item, index) => {
             const priorityConfig = PRIORITY_LABELS[item.priority] || PRIORITY_LABELS.P2;
             return (
-              <div key={item.id} className="relative flex gap-6 mb-8">
+              <div key={item.id ?? `${item.skill_name}-${index}`} className="relative flex gap-6 mb-8">
                 {/* Connector line */}
                 {index < roadmapResult.items.length - 1 && (
                   <div className="absolute left-8 top-16 bottom-0 w-px bg-border-soft" />
@@ -263,6 +294,24 @@ export default function RoadmapPage() {
                       </span>
                     )}
                   </div>
+                  {item.id && (
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="text-mono-xs text-muted mr-2">
+                        Status: {item.status.replace("_", " ")}
+                      </span>
+                      {(["PENDING", "IN_PROGRESS", "COMPLETED"] as const).map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          disabled={busyItemId === item.id || item.status === st}
+                          onClick={() => setItemStatus(item.id as string, st)}
+                          className="rounded-sm border border-border-soft px-3 py-1 text-mono-xs transition-colors hover:bg-panel-hover disabled:cursor-default disabled:opacity-40"
+                        >
+                          {st === "PENDING" ? "Not started" : st === "IN_PROGRESS" ? "In progress" : "Done"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {item.resources && item.resources.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border-soft">
                       <span className="text-mono-xs font-medium text-muted mb-2 block">

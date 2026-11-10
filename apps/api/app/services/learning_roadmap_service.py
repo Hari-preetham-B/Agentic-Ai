@@ -260,7 +260,7 @@ class LearningRoadmapService:
             )
             resources = [
                 {
-                    "id": str(r.id),
+                    "id": str(rr.id),
                     "title": res.title,
                     "provider": res.provider,
                     "resource_type": res.resource_type,
@@ -385,6 +385,8 @@ class LearningRoadmapService:
             )
             self.session.add(roadmap_item)
             await self.session.flush()
+            # Expose the persisted id so clients can update progress per item.
+            item["id"] = str(roadmap_item.id)
 
             for res in item.get("resources", []):
                 rr = RoadmapResource(

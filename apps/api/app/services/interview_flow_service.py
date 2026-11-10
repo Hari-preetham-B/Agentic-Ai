@@ -358,7 +358,7 @@ class InterviewFlowService:
         turn.submitted_at = datetime.now(timezone.utc)
         turn.score = evaluation["overall_score"]
         turn.difficulty = interview.difficulty
-        turn.evaluation_status = "COMPLETED"
+        turn.evaluation_status = "EVALUATED"
         turn.metadata_ = {
             **(turn.metadata_ or {}),
             "skill_names": skill_names,

@@ -8,6 +8,7 @@ import arbitrary Python modules or execute arbitrary functions.
 from __future__ import annotations
 
 import time
+from contextvars import ContextVar
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -112,25 +113,39 @@ class ToolRegistry:
     """Central registry of tools.
 
     Unknown tools fail safely. Tool registration is explicit.
+
+    Registrations are stored per execution context (``contextvars``). Tools
+    are bound to a request's database session, so a process-wide dict would let
+    concurrent requests overwrite each other's tools (and sessions). Each
+    request/task therefore sees only the tools it registered itself.
     """
 
     def __init__(self) -> None:
-        self._tools: dict[str, Tool[Any, Any]] = {}
+        self._var: ContextVar[dict[str, Tool[Any, Any]] | None] = ContextVar(
+            f"tool_registry_{id(self)}", default=None
+        )
+
+    def _tools(self) -> dict[str, Tool[Any, Any]]:
+        tools = self._var.get()
+        if tools is None:
+            tools = {}
+            self._var.set(tools)
+        return tools
 
     def register(self, tool: Tool[Any, Any]) -> None:
-        self._tools[tool.name] = tool
+        self._tools()[tool.name] = tool
 
     def get(self, name: str) -> Tool[Any, Any] | None:
-        return self._tools.get(name)
+        return self._tools().get(name)
 
     def list(self) -> list[str]:
-        return sorted(self._tools.keys())
+        return sorted(self._tools().keys())
 
     def definitions(self) -> list[ToolDefinition]:
-        return [tool.definition() for tool in self._tools.values()]
+        return [tool.definition() for tool in self._tools().values()]
 
     def has(self, name: str) -> bool:
-        return name in self._tools
+        return name in self._tools()
 
 
 # Module-level default registry.

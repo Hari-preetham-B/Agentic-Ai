@@ -1,5 +1,6 @@
 """Tests for authentication providers."""
 
+import time
 from unittest.mock import MagicMock, patch
 
 import jwt
@@ -42,292 +43,143 @@ class TestFakeAuthProvider:
 
 
 class TestSupabaseAuthProvider:
-    """Tests for SupabaseAuthProvider with mocked JWKS."""
+    """Tests for SupabaseAuthProvider using real signed tokens."""
 
-    @pytest.fixture
-    def provider(self) -> SupabaseAuthProvider:
-        return SupabaseAuthProvider(
-            supabase_url="https://test-project.supabase.co",
-        )
+    URL = "https://test-project.supabase.co"
+    SECRET = "x" * 48
 
-    @pytest.mark.asyncio
-    async def test_valid_token(self, provider: SupabaseAuthProvider) -> None:
-        """Test that a valid JWT is accepted."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
+    @pytest.fixture(scope="class")
+    def ec_key(self):
+        from cryptography.hazmat.primitives.asymmetric import ec
 
-        mock_payload = MagicMock()
-        mock_payload.get.side_effect = lambda key, default=None: {
+        return ec.generate_private_key(ec.SECP256R1())
+
+    def _claims(self, **over):
+        now = int(time.time())
+        claims = {
             "sub": "user-123",
             "email": "user@example.com",
-        }.get(key, default)
+            "aud": "authenticated",
+            "iss": f"{self.URL}/auth/v1",
+            "iat": now,
+            "exp": now + 600,
+        }
+        claims.update(over)
+        return claims
 
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.return_value = mock_payload
+    def _es256(self, ec_key, **over):
+        return jwt.encode(self._claims(**over), ec_key, algorithm="ES256", headers={"kid": "k1"})
 
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                result = await provider.validate_token("valid-token")
-
-                assert result.user_id == "user-123"
-                assert result.email == "user@example.com"
-
-    @pytest.mark.asyncio
-    async def test_expired_token(self, provider: SupabaseAuthProvider) -> None:
-        """Test that an expired token is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.ExpiredSignatureError("Token expired")
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError, match="Token has expired"):
-                    await provider.validate_token("expired-token")
+    def _provider(self, ec_key, secret=None):
+        provider = SupabaseAuthProvider(supabase_url=self.URL, jwt_secret=secret)
+        signing_key = MagicMock()
+        signing_key.key = ec_key.public_key()
+        signing_key.algorithm_name = "ES256"
+        client = MagicMock()
+        client.get_signing_key_from_jwt.return_value = signing_key
+        provider._jwks_client = client
+        provider._jwks_fetch_time = time.time()
+        return provider, client
 
     @pytest.mark.asyncio
-    async def test_invalid_signature(self, provider: SupabaseAuthProvider) -> None:
-        """Test that a token with invalid signature is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidSignatureError("Bad signature")
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError, match="Invalid token"):
-                    await provider.validate_token("bad-signature-token")
+    async def test_valid_es256_token(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        user = await provider.validate_token(self._es256(ec_key))
+        assert user.user_id == "user-123"
+        assert user.email == "user@example.com"
 
     @pytest.mark.asyncio
-    async def test_missing_kid(self, provider: SupabaseAuthProvider) -> None:
-        """Test that a token without a kid header is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidKeyError("No signing key found")
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.side_effect = (
-                    jwt.InvalidKeyError("No signing key found")
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError):
-                    await provider.validate_token("token-without-kid")
+    async def test_expired_token(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        token = self._es256(ec_key, exp=int(time.time()) - 10)
+        with pytest.raises(ValueError, match="expired"):
+            await provider.validate_token(token)
 
     @pytest.mark.asyncio
-    async def test_unknown_kid_triggers_refresh(
-        self, provider: SupabaseAuthProvider
-    ) -> None:
-        """Test that an unknown kid triggers a JWKS refresh and retry."""
-        mock_signing_key_first = MagicMock()
-        mock_signing_key_first.key = "old-key"
-        mock_signing_key_second = MagicMock()
-        mock_signing_key_second.key = "new-public-key"
+    async def test_wrong_signature_rejected(self, ec_key) -> None:
+        from cryptography.hazmat.primitives.asymmetric import ec
 
-        mock_payload = MagicMock()
-        mock_payload.get.side_effect = lambda key, default=None: {
-            "sub": "user-456",
-            "email": "user@example.com",
-        }.get(key, default)
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.return_value = mock_payload
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.side_effect = [
-                    Exception("Key not found"),
-                    mock_signing_key_second,
-                ]
-                mock_jwks.return_value = mock_jwks_instance
-
-                result = await provider.validate_token("token-with-new-kid")
-
-                assert result.user_id == "user-456"
-                assert result.email == "user@example.com"
+        provider, _ = self._provider(ec_key)
+        other = ec.generate_private_key(ec.SECP256R1())
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token(self._es256(other))
 
     @pytest.mark.asyncio
-    async def test_unsupported_algorithm(self, provider: SupabaseAuthProvider) -> None:
-        """Test that an unsupported algorithm is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidAlgorithmError(
-                "Unsupported algorithm"
-            )
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError, match="Invalid token"):
-                    await provider.validate_token("token-with-bad-alg")
+    async def test_wrong_issuer_rejected(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token(self._es256(ec_key, iss="https://evil.example/auth/v1"))
 
     @pytest.mark.asyncio
-    async def test_invalid_issuer(self, provider: SupabaseAuthProvider) -> None:
-        """Test that a token with wrong issuer is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        mock_payload = MagicMock()
-        mock_payload.get.side_effect = lambda key, default=None: {
-            "sub": "user-123",
-            "email": "user@example.com",
-        }.get(key, default)
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidIssuerError("Invalid issuer")
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError, match="Invalid token"):
-                    await provider.validate_token("token-with-wrong-issuer")
+    async def test_wrong_audience_rejected(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token(self._es256(ec_key, aud="anon"))
 
     @pytest.mark.asyncio
-    async def test_malformed_token(self, provider: SupabaseAuthProvider) -> None:
-        """Test that a malformed token is rejected."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "fake-public-key"
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.DecodeError("Not enough segments")
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                with pytest.raises(ValueError, match="Invalid token"):
-                    await provider.validate_token("not-a-jwt")
+    async def test_missing_subject_rejected(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        claims = self._claims()
+        del claims["sub"]
+        token = jwt.encode(claims, ec_key, algorithm="ES256", headers={"kid": "k1"})
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token(token)
 
     @pytest.mark.asyncio
-    async def test_jwks_endpoint_failure_fails_closed(
-        self, provider: SupabaseAuthProvider
-    ) -> None:
-        """Test that JWKS endpoint failure results in FAILED status."""
-        with patch(
-            "app.core.auth.supabase_provider.PyJWKClient"
-        ) as mock_jwks:
-            mock_jwks.side_effect = Exception("Network error")
-
-            with pytest.raises(ValueError, match="Unable to reach JWKS"):
-                await provider.validate_token("any-token")
+    async def test_malformed_token(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token("not-a-jwt")
 
     @pytest.mark.asyncio
-    async def test_jwks_cache_prevents_repeated_requests(
-        self, provider: SupabaseAuthProvider
-    ) -> None:
-        """Test that the JWKS cache prevents repeated requests."""
-        mock_signing_key = MagicMock()
-        mock_signing_key.key = "cached-key"
-
-        mock_payload = MagicMock()
-        mock_payload.get.side_effect = lambda key, default=None: {
-            "sub": "cached-user",
-            "email": "cached@example.com",
-        }.get(key, default)
-
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.return_value = mock_payload
-
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                mock_jwks_instance.get_signing_key_from_jwt.return_value = (
-                    mock_signing_key
-                )
-                mock_jwks.return_value = mock_jwks_instance
-
-                # First call
-                await provider.validate_token("token-1")
-                # Second call - should use cached JWKS
-                await provider.validate_token("token-2")
-
-                # PyJWKClient should only be instantiated once
-                assert mock_jwks.call_count == 1
+    async def test_empty_token(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        with pytest.raises(ValueError, match="Missing"):
+            await provider.validate_token("")
 
     @pytest.mark.asyncio
-    async def test_unknown_kid_succeeds_after_refresh(
-        self, provider: SupabaseAuthProvider
-    ) -> None:
-        """Test that an unknown kid succeeds after JWKS refresh."""
-        mock_signing_key_first = MagicMock()
-        mock_signing_key_first.key = "old-key"
-        mock_signing_key_second = MagicMock()
-        mock_signing_key_second.key = "new-public-key"
+    async def test_unsupported_jwks_algorithm(self, ec_key) -> None:
+        provider, client = self._provider(ec_key)
+        client.get_signing_key_from_jwt.return_value.algorithm_name = "none"
+        with pytest.raises(ValueError, match="Unsupported"):
+            await provider.validate_token(self._es256(ec_key))
 
-        mock_payload = MagicMock()
-        mock_payload.get.side_effect = lambda key, default=None: {
-            "sub": "user-456",
-            "email": "user@example.com",
-        }.get(key, default)
+    @pytest.mark.asyncio
+    async def test_jwks_unreachable_fails_closed(self, ec_key) -> None:
+        provider, client = self._provider(ec_key)
+        client.get_signing_key_from_jwt.side_effect = RuntimeError("network down")
+        with patch.object(provider, "_get_jwks_client", return_value=client):
+            with pytest.raises(ValueError, match="signing key"):
+                await provider.validate_token(self._es256(ec_key))
 
-        with patch("app.core.auth.supabase_provider.jwt.decode") as mock_decode:
-            mock_decode.return_value = mock_payload
+    @pytest.mark.asyncio
+    async def test_jwks_cache_reused(self, ec_key) -> None:
+        provider, _ = self._provider(ec_key)
+        first = provider._get_jwks_client()
+        assert provider._get_jwks_client() is first
 
-            with patch(
-                "app.core.auth.supabase_provider.PyJWKClient"
-            ) as mock_jwks:
-                mock_jwks_instance = MagicMock()
-                # First call raises (unknown key), second succeeds
-                mock_jwks_instance.get_signing_key_from_jwt.side_effect = [
-                    Exception("Key not found"),
-                    mock_signing_key_second,
-                ]
-                mock_jwks.return_value = mock_jwks_instance
+    # -- legacy HS256 projects ------------------------------------------
 
-                result = await provider.validate_token("token-with-new-kid")
+    @pytest.mark.asyncio
+    async def test_hs256_accepted_with_secret(self) -> None:
+        provider = SupabaseAuthProvider(supabase_url=self.URL, jwt_secret=self.SECRET)
+        token = jwt.encode(self._claims(), self.SECRET, algorithm="HS256")
+        user = await provider.validate_token(token)
+        assert user.user_id == "user-123"
 
-                assert result.user_id == "user-456"
-                assert result.email == "user@example.com"
+    @pytest.mark.asyncio
+    async def test_hs256_rejected_without_secret(self) -> None:
+        provider = SupabaseAuthProvider(supabase_url=self.URL)
+        token = jwt.encode(self._claims(), self.SECRET, algorithm="HS256")
+        with pytest.raises(ValueError, match="SUPABASE_JWT_SECRET"):
+            await provider.validate_token(token)
+
+    @pytest.mark.asyncio
+    async def test_hs256_wrong_secret_rejected(self) -> None:
+        provider = SupabaseAuthProvider(supabase_url=self.URL, jwt_secret=self.SECRET)
+        token = jwt.encode(self._claims(), "y" * 48, algorithm="HS256")
+        with pytest.raises(ValueError, match="Invalid token"):
+            await provider.validate_token(token)
 
 
 class TestAuthProviderFactory:

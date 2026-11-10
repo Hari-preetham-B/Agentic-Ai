@@ -155,6 +155,16 @@ class SkillDependencyService:
         prereqs = graph.get(skill, [])
         return all(p in known_skills for p in prereqs)
 
+    def get_missing_prerequisites(
+        self,
+        skill: str,
+        graph: dict[str, list[str]],
+        known_skills: set[str],
+    ) -> list[str]:
+        """Return direct prerequisites of ``skill`` that are not in ``known_skills``."""
+        known = {k.lower() for k in known_skills}
+        return [p for p in graph.get(skill, []) if p.lower() not in known]
+
     def topological_sort(
         self, graph: dict[str, list[str]]
     ) -> list[str]:

@@ -58,7 +58,10 @@ export default function TwinPage() {
   const [traceLoading, setTraceLoading] = useState(false);
 
   const loadState = useCallback(async () => {
-    if (!profileId) return;
+    if (!profileId) {
+      setLoading(false);
+      return;
+    }
     try {
       const data = await getCareerTwinState(profileId);
       setState(data);
@@ -84,6 +87,8 @@ export default function TwinPage() {
   }, [profileId]);
 
   useEffect(() => {
+    // Fetch on mount and whenever the active profile changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void loadState();
     void loadRuns();
@@ -91,10 +96,12 @@ export default function TwinPage() {
 
   useEffect(() => {
     if (!selectedRun) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEvents([]);
       return;
     }
     let cancelled = false;
+     
     setTraceLoading(true);
     getAgentRunEvents(selectedRun)
       .then((data) => {
